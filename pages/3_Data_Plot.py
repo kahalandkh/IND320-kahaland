@@ -9,7 +9,6 @@ from modules.data import load_data
 df = load_data()
 
 st.title("Data Plot")
-
 st.write("Select one or more areas, a column, and a month range to explore and compare the reservoir data over time.")
 
 st.write("")
@@ -21,8 +20,8 @@ data_columns = df.columns.tolist()
 area_options = df[["area_type", "area_number"]].drop_duplicates().sort_values(["area_type", "area_number"])
 area_labels = [f"{row.area_type} {row.area_number}" for row in area_options.itertuples(index=False)]
 
-# Restore the previous area selections only if they still exist in the current area options
-if ("plot_areas" not in st.session_state or any(area not in area_labels for area in st.session_state.plot_areas)):
+# Restore the previous area selections
+if "plot_areas" not in st.session_state or any(area not in area_labels for area in st.session_state.plot_areas):
     st.session_state.plot_areas = [area_labels[0]]
 
 selected_areas = st.multiselect("Areas", area_labels, default=st.session_state.plot_areas)
@@ -35,7 +34,7 @@ if not selected_areas:
     # Stop execution of the rest of the page for this rerun
     st.stop()
 
-# Add an area label used for filtering and plotting
+# Filter to the selected areas
 selected_data = df.copy()
 selected_data["area"] = selected_data["area_type"] + " " + selected_data["area_number"].astype(str)
 selected_data = selected_data[selected_data["area"].isin(selected_areas)].sort_values(["area", "date_id"])
@@ -43,26 +42,25 @@ selected_data = selected_data[selected_data["area"].isin(selected_areas)].sort_v
 # Allow any individual dataset column or all columns to be selected
 column_options = ["All columns"] + data_columns
 
-# Restore the previous column only if it still exists in the current column options
+# Restore the previous column
 if "plot_column" not in st.session_state or st.session_state.plot_column not in column_options:
     st.session_state.plot_column = "All columns"
 
 selected_column = st.selectbox("Column", column_options, index=column_options.index(st.session_state.plot_column))
 st.session_state.plot_column = selected_column
 
-# Create the available months for the selected area series
+# Create month labels for the slider
 months = sorted(selected_data["date_id"].dt.to_period("M").unique())
-# Create human-readable labels for the month slider
 month_labels = [month.strftime("%b %Y") for month in months]
 
-# Restore the previous month range only if both months are available for the selected areas
-if ("plot_months" not in st.session_state or st.session_state.plot_months[0] not in month_labels or st.session_state.plot_months[1] not in month_labels):
+# Restore the previous month range
+if "plot_months" not in st.session_state or st.session_state.plot_months[0] not in month_labels or st.session_state.plot_months[1] not in month_labels:
     st.session_state.plot_months = (month_labels[0], month_labels[0])
 
 selected_months = st.select_slider("Month range", options=month_labels, value=st.session_state.plot_months)
 st.session_state.plot_months = selected_months
 
-# Convert the selected month labels back to month periods
+# Convert the selected labels back to month periods
 start_month = months[month_labels.index(selected_months[0])]
 end_month = months[month_labels.index(selected_months[1])]
 
@@ -78,6 +76,10 @@ if selected_column != "All columns":
 
     fig.update_layout(xaxis_title="Date", yaxis_title=selected_column, legend_title_text="Area", hovermode="x unified")
 
+    # Show the exact observation date while keeping the hover compact
+    fig.update_xaxes(hoverformat="%d %b %Y")
+    fig.update_traces(hovertemplate="%{y}<extra>%{fullData.name}</extra>")
+
     st.plotly_chart(fig, width="stretch")
 
 else:
@@ -88,7 +90,7 @@ else:
 
     fig = make_subplots(specs=[[{"secondary_y": True}]])
 
-    # The combined view includes only quantitative reservoir variables
+    # Quantitative reservoir variables shown in the combined plot
     ratio_columns = ["reservoir_fill_ratio", "previous_week_reservoir_fill_ratio", "reservoir_fill_ratio_change"]
     twh_columns = ["reservoir_capacity_twh", "stored_energy_twh"]
 
@@ -115,7 +117,8 @@ else:
                                      y=area_data[column],
                                      mode="lines",
                                      name=f"{area} - {variable_labels[column]}",
-                                     line=dict(color=area_colors[area], dash=line_styles[column], width=2)),
+                                     line=dict(color=area_colors[area], dash=line_styles[column], width=2),
+                                     hovertemplate="%{y:.1%}<extra>%{fullData.name}</extra>"),
                           secondary_y=False)
 
         for column in twh_columns:
@@ -125,23 +128,28 @@ else:
                                          mode="lines+markers",
                                          name=f"{area} - {variable_labels[column]}",
                                          line=dict(color=area_colors[area], dash=line_styles[column], width=2),
-                                         marker=dict(symbol="star", size=6)),
+                                         marker=dict(symbol="star", size=6),
+                                         hovertemplate="%{y:.2f} TWh<extra>%{fullData.name}</extra>"),
                               secondary_y=True)
             else:
                 fig.add_trace(go.Scatter(x=area_data["date_id"],
                                          y=area_data[column],
                                          mode="lines",
                                          name=f"{area} - {variable_labels[column]}",
-                                         line=dict(color=area_colors[area], dash=line_styles[column], width=2)),
+                                         line=dict(color=area_colors[area], dash=line_styles[column], width=2),
+                                         hovertemplate="%{y:.2f} TWh<extra>%{fullData.name}</extra>"),
                               secondary_y=True)
 
-    # Add a reference line
+    # Reference line for changes around zero
     fig.add_hline(y=0, line_dash="dash")
 
     fig.update_layout(title="Reservoir variables by area",
                       xaxis_title="Date",
                       legend_title_text="Area and variable",
                       hovermode="x unified")
+
+    # Show the exact observation date in the hover
+    fig.update_xaxes(hoverformat="%d %b %Y")
 
     fig.update_yaxes(title_text="Fill ratio / change in fill ratio", secondary_y=False)
     fig.update_yaxes(title_text="Energy (TWh)", secondary_y=True)

@@ -15,7 +15,7 @@ st.write("Select an area type and number to display the first month of observati
 # Select an area type from the values available in the dataset
 area_types = sorted(df["area_type"].unique())
 
-# Restore the previous area type only if it still exists in the current options
+# Restore the previous area type
 if "table_area_type" not in st.session_state or st.session_state.table_area_type not in area_types:
     st.session_state.table_area_type = area_types[0]
 
@@ -27,10 +27,10 @@ with col1:
 # Store the current selection so it is preserved when moving between pages
 st.session_state.table_area_type = selected_area_type
 
-# Only show area numbers that belong to the selected area type
+# Only show area numbers belonging to the selected area type
 area_numbers = sorted(df.loc[df["area_type"] == selected_area_type, "area_number"].unique())
 
-# Restore the previous area number if it is still valid for the selected area type
+# Restore the previous area number if it is still valid
 if "table_area_number" not in st.session_state or st.session_state.table_area_number not in area_numbers:
     st.session_state.table_area_number = area_numbers[0]
 
@@ -39,21 +39,18 @@ with col2:
 
 st.session_state.table_area_number = selected_area_number
 
-# Filter the data to the selected area series and sort it chronologically
-selected_data = (df[(df["area_type"] == selected_area_type) & (df["area_number"] == selected_area_number)].sort_values("date_id"))
+# Filter to the selected area and sort chronologically
+selected_data = df[(df["area_type"] == selected_area_type) & (df["area_number"] == selected_area_number)].sort_values("date_id")
 
-# Identify the first month available for the selected area
+# Keep observations from the first available month
 first_month = selected_data["date_id"].dt.to_period("M").min()
-
-# Keep only observations from the first month
 first_month_data = selected_data[selected_data["date_id"].dt.to_period("M") == first_month]
 
 st.write("")
 
-# Show which month is being displayed
 st.caption(f"First month available for {selected_area_type} {selected_area_number}: {first_month.to_timestamp().strftime('%B %Y')}")
 
-# Create one row for each column in the imported dataset
+# Create one row for each dataset column
 table_rows = []
 
 # Only reservoir measurements are displayed as line charts
@@ -76,7 +73,7 @@ for column in df.columns:
     else:
         displayed_values = ", ".join(values.astype(str).tolist())
 
-    # Add a line chart only for reservoir measurement variables
+    # Add a line chart only for reservoir measurements
     if column in trend_columns:
         chart_values = values.tolist()
     else:
@@ -91,8 +88,7 @@ table_df = pd.DataFrame(table_rows)
 st.dataframe(table_df,
              column_config={"Variable": st.column_config.TextColumn("Variable", width="medium"),
                             "First-month values": st.column_config.TextColumn("First-month values", width="large"),
-                            "First-month trend": st.column_config.LineChartColumn("First-month trend", width="large", color="auto")
-                            },
+                            "First-month trend": st.column_config.LineChartColumn("First-month trend", width="large", color="auto")},
              hide_index=True,
              width="stretch",
              height="content",
