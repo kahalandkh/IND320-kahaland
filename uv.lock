@@ -707,6 +707,7 @@ dependencies = [
     { name = "matplotlib" },
     { name = "pandas" },
     { name = "plotly" },
+    { name = "requests" },
     { name = "streamlit" },
 ]
 
@@ -716,6 +717,7 @@ requires-dist = [
     { name = "matplotlib", specifier = ">=3.11.2" },
     { name = "pandas", specifier = ">=3.0.6" },
     { name = "plotly", specifier = ">=7.1.0" },
+    { name = "requests", specifier = ">=2.34.2" },
     { name = "streamlit", specifier = ">=1.64.0" },
 ]
 
