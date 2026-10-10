@@ -18,7 +18,7 @@ data_columns = df.columns.tolist()
 
 # Create the valid area combinations available in the dataset
 area_options = df[["area_type", "area_number"]].drop_duplicates().sort_values(["area_type", "area_number"])
-area_labels = [f"{row.area_type} {row.area_number}" for row in area_options.itertuples(index=False)]
+area_labels = [f"{row.area_type}{row.area_number}" for row in area_options.itertuples(index=False)]
 
 # Restore the previous area selections
 if "plot_areas" not in st.session_state or any(area not in area_labels for area in st.session_state.plot_areas):
@@ -36,7 +36,7 @@ if not selected_areas:
 
 # Filter to the selected areas
 selected_data = df.copy()
-selected_data["area"] = selected_data["area_type"] + " " + selected_data["area_number"].astype(str)
+selected_data["area"] = selected_data["area_type"] + selected_data["area_number"].astype(str)
 selected_data = selected_data[selected_data["area"].isin(selected_areas)].sort_values(["area", "date_id"])
 
 # Allow any individual dataset column or all columns to be selected

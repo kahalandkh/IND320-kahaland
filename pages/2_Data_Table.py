@@ -48,7 +48,7 @@ first_month_data = selected_data[selected_data["date_id"].dt.to_period("M") == f
 
 st.write("")
 
-st.caption(f"First month available for {selected_area_type} {selected_area_number}: {first_month.to_timestamp().strftime('%B %Y')}")
+st.caption(f"First month available for {selected_area_type}{selected_area_number}: {first_month.to_timestamp().strftime('%B %Y')}")
 
 # Create one row for each dataset column
 table_rows = []
