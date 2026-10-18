@@ -93,3 +93,10 @@ st.dataframe(table_df,
              width="stretch",
              height="content",
              row_height=50)
+
+
+st.write("")
+
+with st.expander("Data source"):
+    st.markdown(
+        """The data shown on this page come from [**NVE Magasinstatistikk**](https://www.nve.no/energi/analyser-og-statistikk/magasinstatistikk/).""")

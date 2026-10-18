@@ -62,3 +62,19 @@ fig.update_yaxes(tickformat=".0%")
 fig.update_traces(hovertemplate="%{y:.1%}<extra>%{fullData.name}</extra>")
 
 st.plotly_chart(fig, width="stretch")
+
+# Show the fill-ratio trend for each area in the selected area type
+trend_data = (filtered_data.groupby("area")["reservoir_fill_ratio"].apply(list).reset_index(name="Fill ratio trend"))
+
+st.dataframe(trend_data, 
+             column_config={"area": st.column_config.TextColumn("Area"),
+                            "Fill ratio trend": st.column_config.LineChartColumn(
+                                "Fill ratio trend", width="large", y_min=0, y_max=1, color="primary")},
+             hide_index=True,
+             width="stretch")
+
+st.write("")
+
+with st.expander("Data source"):
+    st.markdown(
+        """The data shown on this page come from [**NVE Magasinstatistikk**](https://www.nve.no/energi/analyser-og-statistikk/magasinstatistikk/).""")

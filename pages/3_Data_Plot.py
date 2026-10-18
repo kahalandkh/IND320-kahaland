@@ -155,3 +155,10 @@ else:
     fig.update_yaxes(title_text="Energy (TWh)", secondary_y=True)
 
     st.plotly_chart(fig, width="stretch")
+
+
+st.write("")
+
+with st.expander("Data source"):
+    st.markdown(
+        """The data shown on this page come from [**NVE Magasinstatistikk**](https://www.nve.no/energi/analyser-og-statistikk/magasinstatistikk/).""")
