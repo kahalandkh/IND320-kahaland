@@ -1,13 +1,18 @@
 import pandas as pd
+import requests
 import streamlit as st
 
 
 @st.cache_data
 def load_data():
-    """Load, rename and cache the reservoir dataset."""
-    df = pd.read_csv("data/reservoirs.csv", parse_dates=["dato_Id"])
+    """Retrieve, prepare and cache the NVE Magasinstatistikk reservoir dataset."""
+    url = ("https://biapi.nve.no/magasinstatistikk/api/Magasinstatistikk/HentOffentligData")
+    response = requests.get(url, timeout=60)
+    response.raise_for_status()
 
-    # Rename the original column headers to match the notebook
+    df = pd.DataFrame(response.json())
+
+    # Rename the original column headers to English names
     df = df.rename(columns={
         "dato_Id": "date_id",
         "omrType": "area_type",
@@ -21,5 +26,7 @@ def load_data():
         "fyllingsgrad_forrige_uke": "previous_week_reservoir_fill_ratio",
         "endring_fyllingsgrad": "reservoir_fill_ratio_change"
     })
+
+    df["date_id"] = pd.to_datetime(df["date_id"])
 
     return df
