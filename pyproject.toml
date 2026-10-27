@@ -5,6 +5,7 @@ requires-python = ">=3.11,<3.12"
 dependencies = [
     "cassandra-driver>=3.30.1",
     "certifi>=2026.7.22",
+    "geopandas>=1.2.0",
     "ipykernel>=7.4.0",
     "matplotlib>=3.11.2",
     "pandas>=3.0.6",
