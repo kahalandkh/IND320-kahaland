@@ -3,10 +3,10 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from plotly.subplots import make_subplots
-from modules.data import load_data
+from modules.magasinstatistikk_data import load_magasinstatistikk_data
 
 
-df = load_data()
+df = load_magasinstatistikk_data()
 
 st.title("Data Plot")
 st.write("Select one or more areas, a column, and a month range to explore and compare the reservoir data over time.")

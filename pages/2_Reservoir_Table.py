@@ -1,10 +1,10 @@
 import pandas as pd
 import streamlit as st
 
-from modules.data import load_data
+from modules.magasinstatistikk_data import load_magasinstatistikk_data
 
 
-df = load_data()
+df = load_magasinstatistikk_data()
 
 st.title("Data Table")
 

@@ -4,7 +4,7 @@ import streamlit as st
 
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
-from modules.mongodb import get_cross_border_collection
+from modules.entsoe_mongodb import get_cross_border_collection
 
 
 collection = get_cross_border_collection()
