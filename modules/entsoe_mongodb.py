@@ -7,5 +7,5 @@ from pymongo import MongoClient
 @st.cache_resource
 def get_cross_border_collection():
     """Connect to MongoDB and return the ENTSO-E cross-border data."""
-    client = MongoClient(st.secrets["MONGODB_URI"], tlsCAFile=certifi.where())
+    client = MongoClient(st.secrets["MONGODB_URI"], tlsCAFile=certifi.where(), serverSelectionTimeoutMS=10000)
     return client["ind320_project"]["cross_border_flows"]

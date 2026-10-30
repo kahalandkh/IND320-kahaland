@@ -1,6 +1,6 @@
-
-import pandas as pd
+import numpy as np
 import openmeteo_requests
+import pandas as pd
 import requests_cache
 from retry_requests import retry
 
@@ -15,12 +15,11 @@ def download_weather(region, start_date, end_date, locations, batch_size=100, ve
     """
     Download hourly ERA5 weather data for a selected region and time interval.
 
-    The sampled locations are downloaded in batches. Returns the requested
-    coordinates and their corresponding Open-Meteo API responses.
+    The sampled locations are downloaded in batches. Returns the Open-Meteo API responses.
     """
     region = region.upper().replace(" ", "")
 
-    if batch_size < 1:
+    if not isinstance(batch_size, (int, np.integer)) or batch_size < 1:
         raise ValueError("batch_size must be at least 1")
 
     if pd.Timestamp(start_date) > pd.Timestamp(end_date):
@@ -53,7 +52,7 @@ def download_weather(region, start_date, end_date, locations, batch_size=100, ve
                   "timezone": "Europe/Berlin",
                   "timeformat": "unixtime"}
 
-        responses = openmeteo.weather_api(url, params=params)
+        responses = openmeteo.weather_api(url, params=params, timeout=120)
 
         # One response is expected for each requested location
         if len(responses) != len(batch):
@@ -64,4 +63,55 @@ def download_weather(region, start_date, end_date, locations, batch_size=100, ve
         if verbose:
             print(f"Downloaded {min(start + batch_size, len(coordinates))}/{len(coordinates)} locations")
 
-    return coordinates, all_responses
+    return all_responses
+
+
+
+def regional_hourly_averages(responses):
+    """
+    Calculate hourly average temperature and precipitation across locations.
+
+    Missing values are excluded from the averages.
+    """
+    if not responses:
+        raise ValueError("No weather responses provided")
+
+    # Use the first response to create the hourly timestamps
+    first_hourly = responses[0].Hourly()
+    start = first_hourly.Time()
+    end = first_hourly.TimeEnd()
+    interval = first_hourly.Interval()
+
+    dates = pd.date_range(start=pd.to_datetime(start, unit="s", utc=True),
+                          end=pd.to_datetime(end, unit="s", utc=True),
+                          freq=pd.Timedelta(seconds=interval),
+                          inclusive="left").tz_convert(responses[0].Timezone().decode())
+
+    n_hours = len(dates)
+
+    # Store sums and counts for temperature (0) and precipitation (1)
+    sums = np.zeros((2, n_hours))
+    counts = np.zeros((2, n_hours), dtype=int)
+
+    for response in responses:
+        hourly = response.Hourly()
+
+        # All locations must have the same hourly timestamps
+        if (hourly.Time(), hourly.TimeEnd(), hourly.Interval()) != (start, end, interval):
+            raise ValueError("Hourly timestamps do not match across locations")
+
+        for i in range(2):
+            values = hourly.Variables(i).ValuesAsNumpy()
+
+            if len(values) != n_hours:
+                raise ValueError("Unexpected number of hourly observations")
+
+            valid = np.isfinite(values)
+
+            sums[i, valid] += values[valid]
+            counts[i, valid] += 1
+
+    # Divide by the number of valid observations for each hour
+    averages = np.divide(sums, counts, out=np.full_like(sums, np.nan), where=counts > 0)
+
+    return pd.DataFrame({"date": dates, "temperature_2m": averages[0], "precipitation": averages[1]})
