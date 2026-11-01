@@ -4,6 +4,7 @@ import pandas as pd
 from scipy.fft import dct, idct
 from scipy.stats import median_abs_deviation
 from sklearn.neighbors import LocalOutlierFactor
+from statsmodels.tsa.seasonal import STL
 
 
 def precipitation_spc(data, cutoff_days=30, n_std=3):
@@ -169,3 +170,30 @@ def temperature_lof(data, contamination=0.01, n_neighbors=50, time_scale=0.02):
     fig.tight_layout()
 
     return fig, result, summary
+
+
+def reservoir_stl(series, seasonal=13, trend=89, robust=True):
+    """Plot STL decomposition of weekly reservoir filling degree."""
+
+    # Require at least two annual cycles of valid weekly observations
+    if len(series) < 104 or not np.isfinite(series.to_numpy(dtype=float)).all():
+        raise ValueError("At least 104 valid weekly observations are required.")
+
+    dates = series.index
+
+    if (not isinstance(dates, pd.DatetimeIndex) or dates.hasnans or not dates.is_unique or not dates.is_monotonic_increasing):
+        raise ValueError("Dates must be valid, unique and chronological.")
+
+    if not ((dates[1:] - dates[:-1]) == pd.Timedelta(weeks=1)).all():
+        raise ValueError("Reservoir data must have weekly intervals without gaps.")
+
+    # Use 52 weeks as an approximation of the annual seasonal cycle
+    result = STL(series, period=52, seasonal=seasonal, trend=trend, robust=robust).fit()
+
+    # Plot the original series, trend, seasonal component and residuals
+    fig = result.plot()
+    fig.set_size_inches(12, 8)
+    fig.axes[0].set_title("STL decomposition of reservoir filling degree")
+    fig.tight_layout()
+
+    return fig
