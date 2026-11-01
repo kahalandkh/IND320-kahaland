@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 from scipy.fft import dct, idct
 from scipy.stats import median_abs_deviation
-
+from sklearn.neighbors import LocalOutlierFactor
 
 
 def precipitation_spc(data, cutoff_days=30, n_std=3):
@@ -101,6 +101,71 @@ def precipitation_spc(data, cutoff_days=30, n_std=3):
 
     ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.22), ncol=4, frameon=False)
 
+    fig.tight_layout()
+
+    return fig, result, summary
+
+
+def temperature_lof(data, contamination=0.01, n_neighbors=50, time_scale=0.02):
+    """Detect unusual hourly temperatures using LOF with temperature and scaled time."""
+
+    # Get temperature values and timestamps
+    dates = pd.DatetimeIndex(pd.to_datetime(data["date"]))
+    values = data["temperature_2m"].to_numpy(dtype=float)
+
+    # Check the input data
+    if len(values) < 3 or dates.hasnans or not np.isfinite(values).all():
+        raise ValueError("At least three valid temperature observations are required.")
+
+    if not dates.is_unique or not dates.is_monotonic_increasing:
+        raise ValueError("Dates must be unique and in chronological order.")
+
+    if not ((dates[1:] - dates[:-1]) == pd.Timedelta(hours=1)).all():
+        raise ValueError("Temperature data must have hourly intervals without gaps.")
+
+    if not np.isfinite(contamination) or not 0 < contamination <= 0.5:
+        raise ValueError("contamination must be between 0 and 0.5.")
+
+    if not isinstance(n_neighbors, (int, np.integer)) or not 1 < n_neighbors < len(values):
+        raise ValueError("n_neighbors must be between 2 and the number of observations minus 1.")
+
+    if not np.isfinite(time_scale) or time_scale < 0:
+        raise ValueError("time_scale must be non-negative.")
+
+    # Include time so LOF also considers when each temperature was recorded.
+    # At time_scale=0.02, 50 hours contribute 1 to the distance, the same as a difference of 1°C in the temperature feature.
+    time = np.arange(len(values)) * time_scale
+    features = np.column_stack((values, time))
+
+    # Apply LOF and identify anomalies
+    model = LocalOutlierFactor(n_neighbors=n_neighbors, contamination=contamination)
+    anomalies = model.fit_predict(features) == -1
+
+    # scikit-learn stores negative LOF scores; higher positive scores mean more unusual observations.
+    scores = -model.negative_outlier_factor_
+
+    # Store the results
+    result = pd.DataFrame({"date": dates,
+                           "temperature_2m": values,
+                           "lof_score": scores,
+                           "anomaly": anomalies})
+
+    summary = {"hours": len(values),
+               "anomalies": int(anomalies.sum()),
+               "anomaly_percent": 100 * anomalies.mean(),
+               "contamination": contamination,
+               "n_neighbors": n_neighbors,
+               "time_scale": time_scale}
+
+    # Plot temperature and detected anomalies
+    fig, ax = plt.subplots(figsize=(12, 4.8))
+
+    ax.plot(dates, values, linewidth=0.8, label="Average temperature")
+    ax.scatter(dates[anomalies], values[anomalies], color="#D50000", s=18, label="LOF anomalies", zorder=3)
+
+    ax.set(xlabel="Time", ylabel="Temperature (°C)", title="Hourly temperature and LOF anomalies")
+
+    ax.legend()
     fig.tight_layout()
 
     return fig, result, summary
