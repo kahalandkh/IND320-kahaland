@@ -197,3 +197,36 @@ def reservoir_stl(series, seasonal=13, trend=89, robust=True):
     fig.tight_layout()
 
     return fig
+
+
+def reservoir_spectrogram(series, window_length=104, overlap=52):
+    """Plot a spectrogram of weekly reservoir filling degree."""
+
+    # Get filling degree values and timestamps
+    dates = series.index
+    values = series.to_numpy(dtype=float)
+
+    # Check the input data
+    if (not isinstance(dates, pd.DatetimeIndex) or dates.hasnans or not dates.is_unique or not dates.is_monotonic_increasing or not ((dates[1:] - dates[:-1]) == pd.Timedelta(weeks=1)).all()):
+        raise ValueError("Reservoir data must have uninterrupted weekly dates.")
+
+    if not np.isfinite(values).all():
+        raise ValueError("Reservoir filling degree must contain finite values.")
+
+    if not isinstance(window_length, (int, np.integer)) or not 4 <= window_length <= len(values):
+        raise ValueError("Window length must be between 4 and the number of observations.")
+
+    if not isinstance(overlap, (int, np.integer)) or not 0 <= overlap < window_length:
+        raise ValueError("Overlap must be non-negative and smaller than the window length.")
+
+    # Calculate the spectrogram using weekly observations
+    fig, ax = plt.subplots(figsize=(12, 4.8))
+    _, _, _, image = ax.specgram(values, Fs=52, NFFT=window_length, noverlap=overlap, detrend="mean", scale="dB")
+
+    ax.set(title="Spectrogram of reservoir filling degree", xlabel=f"Years since {dates[0].date()}",
+           ylabel="Frequency (cycles per year)", ylim=(0, 5))
+
+    fig.colorbar(image, ax=ax, label="Power (dB)")
+    fig.tight_layout()
+
+    return fig
