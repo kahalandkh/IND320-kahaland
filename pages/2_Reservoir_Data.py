@@ -10,7 +10,7 @@ st.title("Reservoir Data")
 
 st.write("")
 
-st.write("Select an area and date range to explore weekly reservoir data.")
+st.write("Select an area and month range to explore weekly reservoir data.")
 
 # Select an area type from the values available in the dataset
 area_types = sorted(df["area_type"].unique())
@@ -38,26 +38,34 @@ with col2:
 # Filter the selected area and sort by date
 selected_data = df.loc[(df["area_type"] == selected_area_type) & (df["area_number"] == selected_area_number)].sort_values("date_id")
 
-min_date = selected_data["date_id"].min().date()
-max_date = selected_data["date_id"].max().date()
 
-# Initially show the month leading up to the latest observation (but still allowing users to select the full history)
-default_start = max(min_date, (pd.Timestamp(max_date) - pd.DateOffset(months=1)).date())
+# Get the available calendar months
+months = sorted(selected_data["date_id"].dt.to_period("M").unique())
 
-# Keep the previous range if it is valid for the selected area
+# Use dates for the slider, covering the complete available months
+min_date = months[0].start_time.date()
+max_date = months[-1].end_time.date()
+
+# Default to the two most recent months with observations
+default_range = (months[max(0, len(months) - 2)].start_time.date(), max_date)
+
+# Keep the previous selection if it is still valid
 saved_range = st.session_state.get("table_date_range")
 
-if (not isinstance(saved_range, (tuple, list)) or len(saved_range) != 2 or not min_date <= saved_range[0] <= saved_range[1] <= max_date):
-    st.session_state["table_date_range"] = (default_start, max_date)
+if (not isinstance(saved_range, (tuple, list)) or len(saved_range) != 2 or not (min_date <= saved_range[0] <= saved_range[1] <= max_date)):
+    st.session_state["table_date_range"] = default_range
 
-st.caption(f"Available dates: {min_date:%d %b %Y} – {max_date:%d %b %Y}")
+# Show month/year labels, although the slider still moves by day
+selected_dates = st.slider("Month range", min_value=min_date, max_value=max_date, format="MMM YYYY", key="table_date_range", persist_state="session")
 
-start_date, end_date = st.slider("Date range", min_value=min_date, max_value=max_date, format="DD MMM YYYY", key="table_date_range", persist_state="session")
+# Convert the selected dates to calendar months
+start_month = pd.Period(selected_dates[0], freq="M")
+end_month = pd.Period(selected_dates[1], freq="M")
 
-period_data = selected_data.loc[selected_data["date_id"].dt.date.between(start_date, end_date)]
+# Include all weekly observations in the selected months
+period_data = selected_data.loc[selected_data["date_id"].dt.to_period("M").between(start_month, end_month)]
 
-st.caption(f"{len(period_data):,} weekly observations for {selected_area_type}{selected_area_number} ({start_date:%d %b %Y} – {end_date:%d %b %Y})")
-
+st.caption(f"{len(period_data):,} weekly observations for {selected_area_type}{selected_area_number} ({start_month.strftime('%b %Y')} – {end_month.strftime('%b %Y')})")
 
 # Remember which view was selected when returning to this page
 view_options = ["Overview", "Weekly observations"]

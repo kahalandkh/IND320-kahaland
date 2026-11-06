@@ -11,7 +11,7 @@ st.set_page_config(page_title="IND320 Energy Project", layout="wide")
 
 # Register the application pages and define their sidebar labels
 pages = [st.Page(main, title="Home", icon="🏠", default=True),
-         st.Page("pages/2_Reservoir_Data.py", title="Reservoir Table", icon="📋"),
+         st.Page("pages/2_Reservoir_Data.py", title="Reservoir Data", icon="📋"),
          st.Page("pages/3_Reservoir_Plot.py", title="Reservoir Plot", icon="📈"),
          st.Page("pages/4_Reservoir_Fill_Ratio.py", title="Reservoir Fill Ratio", icon="💧"),
          st.Page("pages/5_Cross_Border_Transfers.py", title="Cross-border Transfers", icon="⚡")]
