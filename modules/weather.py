@@ -1,8 +1,67 @@
+import geopandas as gpd
 import numpy as np
 import openmeteo_requests
+from pathlib import Path
 import pandas as pd
 import requests_cache
 from retry_requests import retry
+import streamlit as st
+
+
+@st.cache_data
+def sample_weather_locations(region, n_points=1000, seed=26102025):
+    """
+    Generate random locations within a selected geographical area.
+
+    Supports electricity areas (EL1–EL5 / NO1–NO5), hydrological areas (VASS1–VASS3) and Norway (NO).
+    Returns a DataFrame with region, latitude and longitude.
+    """
+    region = region.upper().replace(" ", "")
+
+    if not isinstance(n_points, int) or n_points < 1:
+        raise ValueError("n_points must be a positive integer")
+
+    # Map electricity area identifiers to weather region identifiers
+    if region in [f"EL{i}" for i in range(1, 6)]:
+        region = f"NO{region[2:]}"
+
+    # Locate the shapefiles relative to the project root
+    data_path = Path(__file__).resolve().parents[1] / "data" / "geographical"
+
+    # Electricity areas, or their combined coverage for NO
+    if region == "NO" or region in [f"NO{i}" for i in range(1, 6)]:
+        areas = gpd.read_file(data_path / "Budområder" / "Budområder.shp", encoding="utf-8")
+
+        if region == "NO":
+            selected = areas
+        else:
+            names = areas["budomr"].str.replace(" ", "", regex=False)
+            selected = areas.loc[names == region]
+
+    # Hydrological regions
+    elif region in ["VASS1", "VASS2", "VASS3"]:
+        areas = gpd.read_file(data_path / "NVE_Region" / "NVE_Region.shp", encoding="utf-8")
+
+        vass_parts = {"VASS1": ["RS", "RØ"],
+                      "VASS2": ["RV"],
+                      "VASS3": ["RM", "RN"]}
+
+        selected = areas.loc[areas["REGION"].isin(vass_parts[region])]
+
+    else:
+        raise ValueError(f"Unsupported region: {region}")
+
+    if selected.empty:
+        raise ValueError(f"No geographical boundary found for {region}")
+
+    # Combine the selected polygons (all electricity areas for NO)
+    boundary = gpd.GeoSeries([selected.geometry.union_all()], crs=selected.crs)
+
+    # Generate reproducible points and convert to WGS84
+    points = boundary.sample_points(size=n_points, rng=seed)
+    points = points.explode(ignore_index=True).to_crs(epsg=4326)
+
+    return pd.DataFrame({"region": region, "latitude": points.y.to_numpy(), "longitude": points.x.to_numpy()})
 
 
 # Setup the Open-Meteo API client with cache and retry on error
@@ -18,6 +77,10 @@ def download_weather(region, start_date, end_date, locations, batch_size=100, ve
     The sampled locations are downloaded in batches. Returns the Open-Meteo API responses.
     """
     region = region.upper().replace(" ", "")
+    
+    # Use NO identifiers for electricity areas, as in the sampled locations
+    if region in [f"EL{i}" for i in range(1, 6)]:
+        region = f"NO{region[2:]}"
 
     if not isinstance(batch_size, (int, np.integer)) or batch_size < 1:
         raise ValueError("batch_size must be at least 1")

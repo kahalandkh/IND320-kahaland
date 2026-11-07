@@ -91,6 +91,8 @@ elif view == "Overview":
     def format_value(value, values):
         if pd.isna(value):
             return "—"
+        if isinstance(value, str) and value.startswith("0001-01-01"):
+            return "—"
         if isinstance(value, pd.Timestamp):
             return value.strftime("%d %b %Y")
         if pd.api.types.is_numeric_dtype(values):
