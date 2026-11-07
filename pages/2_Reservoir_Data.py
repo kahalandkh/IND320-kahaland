@@ -10,34 +10,15 @@ st.title("Reservoir Data")
 
 st.write("")
 
-st.write("Select an area and month range to explore weekly reservoir data.")
+st.write("Choose a region in the sidebar and a month range below to explore weekly reservoir data.")
 
-# Select an area type from the values available in the dataset
-area_types = sorted(df["area_type"].unique())
-
-# Keep the selected area when navigating between pages
-if st.session_state.get("table_area_type") not in area_types:
-    st.session_state["table_area_type"] = area_types[0]
-
-col1, col2 = st.columns([2, 1])
-
-with col1:
-    selected_area_type = st.selectbox("Area type", area_types, key="table_area_type", persist_state="session")
-
-# The available area numbers depend on the selected area type
-area_numbers = sorted(df.loc[df["area_type"] == selected_area_type, "area_number"].dropna().unique())
-
-# Reset the area number if it isn't available for the selected area type
-if st.session_state.get("table_area_number") not in area_numbers:
-    st.session_state["table_area_number"] = area_numbers[0]
-
-with col2:
-    selected_area_number = st.selectbox("Area number", area_numbers, key="table_area_number", persist_state="session")
+# Use the region selected in the global sidebar
+selected_area_type = st.session_state["selected_area_type"]
+selected_area_number = st.session_state["selected_area_number"]
 
 
 # Filter the selected area and sort by date
 selected_data = df.loc[(df["area_type"] == selected_area_type) & (df["area_number"] == selected_area_number)].sort_values("date_id")
-
 
 # Get the available calendar months
 months = sorted(selected_data["date_id"].dt.to_period("M").unique())
@@ -77,7 +58,7 @@ view = st.segmented_control("View", view_options, key="table_view", persist_stat
 
 
 if period_data.empty:
-    st.info("No weekly observations are available for these dates.")
+    st.info("No weekly observations are available for the selected months.")
 
 elif view == "Overview":
 

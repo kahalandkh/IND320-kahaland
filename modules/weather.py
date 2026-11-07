@@ -13,17 +13,19 @@ def sample_weather_locations(region, n_points=1000, seed=26102025):
     """
     Generate random locations within a selected geographical area.
 
-    Supports electricity areas (EL1–EL5 / NO1–NO5), hydrological areas (VASS1–VASS3) and Norway (NO).
+    Supports electricity areas (EL1–EL5 / NO1–NO5), hydrological areas (VASS1–VASS3) and Norway (NO0 / NO).
     Returns a DataFrame with region, latitude and longitude.
     """
     region = region.upper().replace(" ", "")
-
+    
+    # Match reservoir area identifiers to geographical regions
+    if region == "NO0":
+        region = "NO"
+    elif region in [f"EL{i}" for i in range(1, 6)]:
+        region = f"NO{region[2:]}"
+    
     if not isinstance(n_points, int) or n_points < 1:
         raise ValueError("n_points must be a positive integer")
-
-    # Map electricity area identifiers to weather region identifiers
-    if region in [f"EL{i}" for i in range(1, 6)]:
-        region = f"NO{region[2:]}"
 
     # Locate the shapefiles relative to the project root
     data_path = Path(__file__).resolve().parents[1] / "data" / "geographical"
@@ -78,8 +80,10 @@ def download_weather(region, start_date, end_date, locations, batch_size=100, ve
     """
     region = region.upper().replace(" ", "")
     
-    # Use NO identifiers for electricity areas, as in the sampled locations
-    if region in [f"EL{i}" for i in range(1, 6)]:
+    # Match reservoir area identifiers to geographical regions
+    if region == "NO0":
+        region = "NO"
+    elif region in [f"EL{i}" for i in range(1, 6)]:
         region = f"NO{region[2:]}"
 
     if not isinstance(batch_size, (int, np.integer)) or batch_size < 1:
