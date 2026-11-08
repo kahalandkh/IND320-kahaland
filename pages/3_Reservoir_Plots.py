@@ -24,8 +24,7 @@ area_numbers = sorted(df.loc[df["area_type"] == selected_area_type, "area_number
 area_labels = [f"{selected_area_type}{number}" for number in area_numbers]
 comparison_options = [area for area in area_labels if area != primary_area]
 
-# Clear checkboxes that no longer represent valid comparisons.
-# This also prevents an area from comparing with itself if it becomes primary.
+# Clear checkboxes that no longer represent valid comparisons (This also prevents an area from comparing with itself if it becomes primary)
 for key in list(st.session_state):
     if key.startswith("plot_compare_checkbox_"):
         area = key.removeprefix("plot_compare_checkbox_")
@@ -189,7 +188,6 @@ else:
             fig.update_xaxes(hoverformat="%d %b %Y")
             fig.update_yaxes(title_text="Fill ratio / weekly change", tickformat=".0%", secondary_y=False)
             fig.update_yaxes(title_text="Energy (TWh)", secondary_y=True)
-
             st.plotly_chart(fig, width="stretch")
 
 

@@ -16,7 +16,6 @@ st.write("Choose a region in the sidebar and a month range below to explore week
 selected_area_type = st.session_state["selected_area_type"]
 selected_area_number = st.session_state["selected_area_number"]
 
-
 # Filter the selected area and sort by date
 selected_data = df.loc[(df["area_type"] == selected_area_type) & (df["area_number"] == selected_area_number)].sort_values("date_id")
 

@@ -18,7 +18,8 @@ def main():
 pages = [st.Page(main, title="Home", icon="🏠", default=True),
          st.Page("pages/2_Reservoir_Data.py", title="Reservoir Data", icon="📋"),
          st.Page("pages/3_Reservoir_Plots.py", title="Reservoir Plots", icon="📈"),
-         st.Page("pages/5_Cross_Border_Transfers.py", title="Cross-border Transfers", icon="⚡")]
+         st.Page("pages/5_Weather_Analysis.py", title="Weather Analysis", icon="🌦️"),
+         st.Page("pages/6_Cross_Border_Transfers.py", title="Cross-border Transfers", icon="⚡")]
 
 page = st.navigation(pages)
 
@@ -48,6 +49,14 @@ with st.sidebar:
     selected_area_number = st.selectbox("Area number", area_numbers, key="selected_area_number")
 
     st.caption(f"Current selection: {selected_area_type}{selected_area_number}")
+    
+    # Explain the area types used in the app
+    with st.expander("About the regions"):
+        st.markdown("""
+        - **EL1–EL5:** Norwegian electricity bidding zones (NO1–NO5).
+        - **VASS1–VASS3:** Groups of NVE hydrological regions.
+        - **NO0:** Norway as a whole.
+        """)
 
 # Run the selected page
 page.run()
