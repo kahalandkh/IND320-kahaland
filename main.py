@@ -11,13 +11,36 @@ def main():
     """Render the home page."""
     st.title("IND320 Energy Project")
 
-    st.write("This application was developed as part of the IND320 project work and provides an interactive view of reservoir, weather and cross-border electricity data.")
+    st.write("")
+    st.write("This application was developed as part of the IND320 project work and provides an interactive overview of reservoir, historical weather and cross-border electricity transfer data.")
 
+    st.write("")
+    st.subheader("What you can explore")
+
+    st.markdown(
+        "- **Reservoir Data:** Browse weekly reservoir measurements and trends.\n"
+        "- **Reservoir Plots:** Plot reservoir measurements over time and compare regions.\n"
+        "- **Reservoir Analysis:** Explore seasonal patterns in reservoir filling degree using STL and Spectrogram.\n"
+        "- **Weather Analysis:** Download hourly ERA5 weather data and analyse unusual precipitation (SPC) and temperature (LOF).\n"
+        "- **Cross-border Transfers:** Explore annual electricity transfers and monthly flows between Norway and neighbouring bidding zones.")
+
+    st.write("")
+    st.subheader("Getting started")
+
+    st.write(
+        "Choose a region in the sidebar to explore reservoir and weather data. "
+        "Each page has its own date and analysis settings. On the Weather Analysis page, "
+        "select a period and click 'Load weather data' before running the analyses.")
+
+    st.caption(
+        "Cross-border Transfers uses a separate connection selector "
+        "and is not affected by the global region selection.")
 
 # Register the application pages and define their sidebar labels
 pages = [st.Page(main, title="Home", icon="🏠", default=True),
          st.Page("pages/2_Reservoir_Data.py", title="Reservoir Data", icon="📋"),
          st.Page("pages/3_Reservoir_Plots.py", title="Reservoir Plots", icon="📈"),
+         st.Page("pages/4_Reservoir_Analysis.py", title="Reservoir Analysis", icon="📊"),
          st.Page("pages/5_Weather_Analysis.py", title="Weather Analysis", icon="🌦️"),
          st.Page("pages/6_Cross_Border_Transfers.py", title="Cross-border Transfers", icon="⚡")]
 
