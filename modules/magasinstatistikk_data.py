@@ -3,8 +3,9 @@ import requests
 import streamlit as st
 
 
-@st.cache_data
-def load_data():
+# Cache the dataset for 24 hours to avoid repeated API downloads
+@st.cache_data(ttl="24h")
+def load_magasinstatistikk_data():
     """Retrieve, prepare and cache the NVE Magasinstatistikk reservoir dataset."""
     url = ("https://biapi.nve.no/magasinstatistikk/api/Magasinstatistikk/HentOffentligData")
     response = requests.get(url, timeout=60)
