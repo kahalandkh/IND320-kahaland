@@ -133,7 +133,6 @@ def download_weather(region, start_date, end_date, locations, batch_size=100, ve
     return all_responses
 
 
-
 def regional_hourly_averages(responses):
     """
     Calculate hourly average temperature and precipitation across locations.
@@ -182,3 +181,41 @@ def regional_hourly_averages(responses):
     averages = np.divide(sums, counts, out=np.full_like(sums, np.nan), where=counts > 0)
 
     return pd.DataFrame({"date": dates, "temperature_2m": averages[0], "precipitation": averages[1]})
+
+
+def hourly_weather_to_weekly(hourly):
+    """Convert regional hourly weather data into complete Norwegian Monday-Sunday weeks."""
+    df = hourly[["date", "temperature_2m", "precipitation"]].copy()
+    df["date"] = pd.to_datetime(df["date"])
+
+    if df["date"].dt.tz is None:
+        raise ValueError("Weather timestamps must be timezone-aware.")
+
+    df = df.set_index("date").tz_convert("Europe/Oslo").sort_index()
+
+    if df.index.has_duplicates:
+        raise ValueError("Duplicate hourly weather timestamps.")
+
+    # Temperature is measured at the given hour
+    temperature = df["temperature_2m"].resample("W-MON", closed="left", label="left")
+
+    # Precipitation represents the preceding hour
+    precipitation = df["precipitation"].copy()
+    precipitation.index = precipitation.index - pd.Timedelta(hours=1)
+    precipitation = precipitation.resample("W-MON", closed="left", label="left")
+
+    weekly = pd.DataFrame({"temperature_mean_c": temperature.mean(),
+                           "precipitation_total_mm": precipitation.sum(),
+                           "temperature_hours": temperature.count(),
+                           "precipitation_hours": precipitation.count()})
+
+    # Check complete weeks, accounting for daylight saving time
+    expected_hours = ((weekly.index + pd.DateOffset(weeks=1) - weekly.index) / pd.Timedelta(hours=1))
+
+    weekly = weekly.loc[(weekly["temperature_hours"] == expected_hours) & (weekly["precipitation_hours"] == expected_hours),
+                        ["temperature_mean_c", "precipitation_total_mm"]]
+
+    # Label each Monday-Sunday week by Sunday, as in the NVE dataset
+    weekly.index = pd.DatetimeIndex([pd.Timestamp(monday.date()) + pd.Timedelta(days=6) for monday in weekly.index], name="date_id")
+
+    return weekly
