@@ -183,6 +183,14 @@ def regional_hourly_averages(responses):
     return pd.DataFrame({"date": dates, "temperature_2m": averages[0], "precipitation": averages[1]})
 
 
+@st.cache_data(ttl="7d")
+def load_regional_hourly_weather(region, start_date, end_date, n_points=100, batch_size=100, seed=26102025):
+    """Load and cache regional hourly averages for a selected period."""
+    locations = sample_weather_locations(region, n_points=n_points, seed=seed)
+    responses = download_weather(region, start_date, end_date, locations, batch_size=batch_size)
+    return regional_hourly_averages(responses)
+
+
 def hourly_weather_to_weekly(hourly):
     """Convert regional hourly weather data into complete Norwegian Monday-Sunday weeks."""
     df = hourly[["date", "temperature_2m", "precipitation"]].copy()
