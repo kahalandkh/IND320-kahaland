@@ -8,6 +8,7 @@ dependencies = [
     "geopandas>=1.2.0",
     "ipykernel>=7.4.0",
     "matplotlib>=3.11.2",
+    "nbformat>=5.11.1",
     "openmeteo-requests>=1.7.5",
     "pandas>=3.0.6",
     "plotly>=7.1.0",
