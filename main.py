@@ -1,3 +1,4 @@
+import pandas as pd
 import streamlit as st
 from streamlit_folium import st_folium
 
@@ -29,6 +30,12 @@ def main():
     st.write("")
     st.write("Explore Norwegian reservoir, weather, electricity transfer and currency exchange data.")
 
+    reference_week = st.selectbox("Reference week", observation_dates,
+                                  format_func=lambda date: date.strftime("%d %b %Y"),
+                                  key="reference_week",
+                                  persist_state="session",
+                                  help="Select the week for which reservoir and weather data are displayed.")
+
     map_column, info_column = st.columns([3, 2])
 
     with map_column:
@@ -41,7 +48,27 @@ def main():
 
     with info_column:
         st.subheader("Selected region")
-        st.write(f"{selected_area_type}{selected_area_number}")
+        st.write(f"**{selected_area_type}{selected_area_number}**")
+        st.caption(f"Observation: {reference_week:%d %b %Y}")
+
+        # Select the reservoir observation for the chosen region and week
+        observation = df.loc[(df["area_type"] == selected_area_type) & (df["area_number"] == selected_area_number) & (df["date_id"].dt.date == reference_week)]
+
+        if observation.empty:
+            st.info("No reservoir observations are available for the selected week.")
+        else:
+            row = observation.iloc[0]
+
+            metrics = [("Reservoir filling", "reservoir_fill_ratio", ".2%", 1, ""),
+                       ("Stored energy", "stored_energy_twh", ".3f", 1, " TWh"),
+                       ("Reservoir capacity", "reservoir_capacity_twh", ".3f", 1, " TWh"),
+                       ("Weekly change", "reservoir_fill_ratio_change", "+.2f", 100, " pp")]
+
+            for label, column, fmt, scale, unit in metrics:
+                value = row[column]
+
+                with st.container(border=True):
+                    st.metric(label, f"{value * scale:{fmt}}{unit}" if pd.notna(value) else "Unavailable")
 
     st.write("")
     st.subheader("What you can explore")
@@ -58,8 +85,8 @@ def main():
 
     st.write(
         "Select a region on the map or in the sidebar to explore reservoir and weather data. "
-        "Each page has its own date and analysis settings. On the Weather Analysis page, "
-        "select a period and click 'Load weather data' before running the analyses.")
+        "Use the reference week to view historical reservoir measurements. "
+        "The analysis pages have their own date and analysis settings.")
 
     st.caption("Electricity Transfers and Currency Exchange Rates are independent of the selected region.")
 
@@ -75,19 +102,27 @@ pages = {"": [st.Page(main, title="Home", icon=":material/home:", default=True)]
 
 page = st.navigation(pages)
 
-# Get the available reservoir regions
+# Get the available reservoir regions and observation dates
 df = load_magasinstatistikk_data()
 area_types = sorted(df["area_type"].dropna().unique())
+observation_dates = sorted(df["date_id"].dropna().dt.date.unique(), reverse=True)
 
 # Default to electricity area EL on a new session
 if st.session_state.get("selected_area_type") not in area_types:
     st.session_state["selected_area_type"] = ("EL" if "EL" in area_types else area_types[0])
 
+# Default to the latest available observation
+if st.session_state.get("reference_week") not in observation_dates:
+    st.session_state["reference_week"] = observation_dates[0]
+
 # Keep the region selector visible across all pages
 with st.sidebar:
     st.subheader("Selected region")
 
-    selected_area_type = st.selectbox("Area type", area_types, key="selected_area_type")
+    selected_area_type = st.selectbox("Area type", area_types, key="selected_area_type",
+                                      help="EL: Norwegian electricity bidding zones (NO1–NO5).\n\n"
+                                           "VASS: Groups of NVE hydrological regions.\n\n"
+                                           "NO: Norway as a whole.")
 
     # Area numbers depend on the selected area type
     area_numbers = sorted(df.loc[df["area_type"] == selected_area_type, "area_number"].dropna().unique())
@@ -99,14 +134,7 @@ with st.sidebar:
     selected_area_number = st.selectbox("Area number", area_numbers, key="selected_area_number")
 
     st.caption(f"Current selection: {selected_area_type}{selected_area_number}")
-    
-    # Explain the area types used in the app
-    with st.expander("About the regions"):
-        st.markdown("""
-        - **EL1–EL5:** Norwegian electricity bidding zones (NO1–NO5).
-        - **VASS1–VASS3:** Groups of NVE hydrological regions.
-        - **NO0:** Norway as a whole.
-        """)
+
 
 # Run the selected page
 page.run()
