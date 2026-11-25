@@ -10,57 +10,40 @@ import streamlit as st
 
 @st.cache_data
 def sample_weather_locations(region, n_points=1000, seed=26102025):
-    """
-    Generate random locations within a selected geographical area.
-
+    """Generate random locations within a selected geographical area.
     Supports electricity areas (EL1–EL5 / NO1–NO5), hydrological areas (VASS1–VASS3) and Norway (NO0 / NO).
-    Returns a DataFrame with region, latitude and longitude.
-    """
+    Returns a DataFrame with region, latitude and longitude."""
     region = region.upper().replace(" ", "")
-    
-    # Match reservoir area identifiers to geographical regions
+
+    # Keep region names consistent with the weather download function
     if region == "NO0":
         region = "NO"
     elif region in [f"EL{i}" for i in range(1, 6)]:
         region = f"NO{region[2:]}"
-    
     if not isinstance(n_points, int) or n_points < 1:
         raise ValueError("n_points must be a positive integer")
 
-    # Locate the shapefiles relative to the project root
+    # Match weather region names to Magasinstatistikk identifiers
+    area_id = region
+
+    if region == "NO":
+        area_id = "NO0"
+    elif region in [f"NO{i}" for i in range(1, 6)]:
+        area_id = f"EL{region[2:]}"
+
     data_path = Path(__file__).resolve().parents[1] / "data" / "geographical"
+    areas = gpd.read_file(data_path / "reservoir_areas.geojson")
 
-    # Electricity areas, or their combined coverage for NO
-    if region == "NO" or region in [f"NO{i}" for i in range(1, 6)]:
-        areas = gpd.read_file(data_path / "Budområder" / "Budområder.shp", encoding="utf-8")
-
-        if region == "NO":
-            selected = areas
-        else:
-            names = areas["budomr"].str.replace(" ", "", regex=False)
-            selected = areas.loc[names == region]
-
-    # Hydrological regions
-    elif region in ["VASS1", "VASS2", "VASS3"]:
-        areas = gpd.read_file(data_path / "NVE_Region" / "NVE_Region.shp", encoding="utf-8")
-
-        vass_parts = {"VASS1": ["RS", "RØ"],
-                      "VASS2": ["RV"],
-                      "VASS3": ["RM", "RN"]}
-
-        selected = areas.loc[areas["REGION"].isin(vass_parts[region])]
-
-    else:
-        raise ValueError(f"Unsupported region: {region}")
+    selected = areas.loc[areas["area_id"] == area_id]
 
     if selected.empty:
         raise ValueError(f"No geographical boundary found for {region}")
 
-    # Combine the selected polygons (all electricity areas for NO)
-    boundary = gpd.GeoSeries([selected.geometry.union_all()], crs=selected.crs)
-
-    # Generate reproducible points and convert to WGS84
+    # Sample in the original projected coordinate system
+    boundary = selected.geometry.to_crs(epsg=25833)
     points = boundary.sample_points(size=n_points, rng=seed)
+
+    # Convert sampled locations to WGS84 for Open-Meteo
     points = points.explode(ignore_index=True).to_crs(epsg=4326)
 
     return pd.DataFrame({"region": region, "latitude": points.y.to_numpy(), "longitude": points.x.to_numpy()})
