@@ -1,4 +1,3 @@
-import matplotlib.pyplot as plt
 import pandas as pd
 import streamlit as st
 
@@ -66,10 +65,8 @@ def save_reservoir_tab():
     st.session_state["reservoir_analysis_last_tab"] = st.session_state["reservoir_analysis_tabs"]
 
 
-stl_tab, spectrogram_tab = st.tabs(
-    ["STL", "Spectrogram"], default=st.session_state.get("reservoir_analysis_last_tab", "STL"),
-    key="reservoir_analysis_tabs", on_change=save_reservoir_tab,
-)
+stl_tab, spectrogram_tab = st.tabs(["STL", "Spectrogram"], default=st.session_state.get("reservoir_analysis_last_tab", "STL"),
+                                   key="reservoir_analysis_tabs", on_change=save_reservoir_tab)
 
 with stl_tab:
     st.write("Separate the weekly filling degree into trend, seasonal pattern and residuals.")
@@ -97,9 +94,8 @@ with stl_tab:
         else:
             try:
                 fig = reservoir_stl(series, seasonal=seasonal, trend=trend, robust=robust)
-                st.pyplot(fig, width="stretch")
-                plt.close(fig)
-                st.caption("The filling degree is shown as a fraction (0–1), as in the original reservoir data.")
+                st.plotly_chart(fig, width="stretch")
+                st.caption("Observed values and trend are shown in percentages (%), while seasonal and residual components are shown in percentage points (pp).")
             except ValueError as exc:
                 st.warning(f"STL analysis could not run: {exc}")
 
@@ -138,8 +134,7 @@ with spectrogram_tab:
                 
         try:
             fig = reservoir_spectrogram(series, window_length=window_length, overlap=overlap)
-            st.pyplot(fig, width="stretch")
-            plt.close(fig)
+            st.plotly_chart(fig, width="stretch")
             st.caption("Frequency is measured in cycles per year; around 1 cycle/year represents an annual pattern.")
         except ValueError as exc:
             st.warning(f"Spectrogram could not run: {exc}")

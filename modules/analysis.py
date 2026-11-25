@@ -1,7 +1,10 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from scipy.fft import dct, idct
+from scipy.signal import spectrogram
 from scipy.stats import median_abs_deviation
 from sklearn.neighbors import LocalOutlierFactor
 from statsmodels.tsa.seasonal import STL
@@ -174,13 +177,24 @@ def reservoir_stl(series, seasonal=13, trend=89, robust=True):
     if not ((dates[1:] - dates[:-1]) == pd.Timedelta(weeks=1)).all():
         raise ValueError("Reservoir data must have weekly intervals without gaps.")
 
-    # 52 weeks approximates a year. The two smoothers control how the seasonal pattern and long-term trend change. robust=True downweights large residuals
+    # 52 weeks approximates a year
     result = STL(series, period=52, seasonal=seasonal, trend=trend, robust=robust).fit()
 
-    fig = result.plot()
-    fig.set_size_inches(12, 8)
-    fig.axes[0].set_title("STL decomposition of reservoir filling degree")
-    fig.tight_layout()
+    fig = make_subplots(rows=4, cols=1, shared_xaxes=True, vertical_spacing=0.06)
+    components = [("Observed", series, "#8FD3C1"),
+                  ("Trend", result.trend, "#5FA8D3"),
+                  ("Seasonal", result.seasonal, "#E4C1F9"),
+                  ("Residual", result.resid, "#E07A5F")]
+
+    for row, (name, component, colour) in enumerate(components, start=1):
+        unit = "%" if row <= 2 else " pp"
+        fig.add_trace(go.Scatter(x=dates, y=component * 100, mode="lines", name=name, line=dict(color=colour, width=1.5),
+                                 hovertemplate=f"%{{y:.2f}}{unit}<extra></extra>"), row=row, col=1)
+        fig.update_yaxes(title_text=name, ticksuffix=unit, row=row, col=1)
+        
+    fig.update_layout(title="STL decomposition of reservoir filling degree", height=750, showlegend=False, hovermode="x unified")
+    fig.update_xaxes(hoverformat="%d %b %Y")
+    fig.update_xaxes(title_text="Date", row=4, col=1)
 
     return fig
 
@@ -204,21 +218,28 @@ def reservoir_spectrogram(series, window_length=104, overlap=52):
     if window_length > len(values):
         raise ValueError(f"The selected period has {len(values)} weekly observations, but the window length is {window_length}. Choose a shorter window or a longer period.")
 
-    # Each new window moves forward by window_length - overlap weeks.
+    # Each new window moves forward by window_length - overlap weeks
     if not isinstance(overlap, (int, np.integer)) or not 0 <= overlap < window_length:
         raise ValueError(f"Overlap must be a whole number between 0 and {window_length - 1} weeks.")
 
-    # There are about 52 weekly observations per year. A 104-week window with 52-week overlap looks at two-year sections, moving one year at a time
-    fig, ax = plt.subplots(figsize=(12, 4.8))
-    _, _, _, image = ax.specgram(values, Fs=52, NFFT=window_length, noverlap=overlap, detrend="mean", scale="dB")
+    # Calculate the spectrogram
+    frequencies, times, power = spectrogram(values, fs=52, window=np.hanning(window_length), nperseg=window_length, 
+                                            noverlap=overlap, detrend="constant", scaling="density")
 
-    ax.set(title="Spectrogram of reservoir filling degree", xlabel=f"Years since {dates[0].date()}", ylabel="Frequency (cycles per year)")
+    # Convert spectral power to decibels
+    power_db = np.full_like(power, np.nan)
+    np.log10(power, out=power_db, where=power > 0)
+    power_db *= 10
+
+    # Convert window centres to calendar dates
+    window_dates = dates[0] + pd.to_timedelta(times * 52 * 7, unit="D")
+
+    fig = go.Figure(go.Heatmap(x=window_dates, y=frequencies, z=power_db, colorscale="Viridis", colorbar=dict(title="Power (dB)"),
+                               hovertemplate=("Date: %{x|%d %b %Y}<br>Frequency: %{y:.2f} cycles/year<br>Power: %{z:.2f} dB<extra></extra>")))
+    fig.update_layout(title="Spectrogram of reservoir filling degree", xaxis_title="Date", yaxis_title="Frequency (cycles per year)", height=500)
 
     # Small windows have coarser frequency bins
     if window_length >= 52:
-        ax.set_ylim(0, 5)
-
-    fig.colorbar(image, ax=ax, label="Power (dB)")
-    fig.tight_layout()
+        fig.update_yaxes(range=[0, 5])
 
     return fig
