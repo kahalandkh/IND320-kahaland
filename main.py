@@ -18,8 +18,7 @@ def main():
     st.subheader("What you can explore")
 
     st.markdown(
-        "- **Reservoir Data:** Browse weekly reservoir measurements and trends.\n"
-        "- **Reservoir Plots:** Plot reservoir measurements over time and compare regions.\n"
+        "- **Magasinstatistikk:** Explore weekly reservoir measurements, trends and comparisons between regions.\n"
         "- **Reservoir Analysis:** Explore seasonal patterns in reservoir filling degree using STL and Spectrogram.\n"
         "- **Weather Analysis:** Download hourly ERA5 weather data and analyse unusual precipitation (SPC) and temperature (LOF).\n"
         "- **Electricity Transfers:** Explore annual electricity transfers and monthly flows between Norway and neighbouring bidding zones.\n"
@@ -37,8 +36,7 @@ def main():
 
 # Register the pages and organise them into navigation groups
 pages = {"": [st.Page(main, title="Home", icon=":material/home:", default=True)],
-         "Data overview": [st.Page("pages/2_Reservoir_Data.py", title="Reservoir Data", icon=":material/table_chart:"),
-                           st.Page("pages/3_Reservoir_Plots.py", title="Reservoir Plots", icon=":material/show_chart:"),
+         "Data overview": [st.Page("pages/2_Magasinstatistikk.py", title="Magasinstatistikk", icon=":material/water_drop:"),
                            st.Page("pages/6_Cross_Border_Transfers.py", title="Electricity Transfers", icon=":material/bolt:"),
                            st.Page("pages/7_Currency_Exchange_Rates.py", title="Currency Exchange Rates", icon=":material/currency_exchange:")],
          "Data analysis": [st.Page("pages/4_Reservoir_Analysis.py", title="Reservoir Analysis", icon=":material/query_stats:"),
