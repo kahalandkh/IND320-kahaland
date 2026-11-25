@@ -210,3 +210,30 @@ def hourly_weather_to_weekly(hourly):
     weekly.index = pd.DatetimeIndex([pd.Timestamp(monday.date()) + pd.Timedelta(days=6) for monday in weekly.index], name="date_id")
 
     return weekly
+
+
+@st.cache_data()
+def load_weather_week(region, reference_week, n_points=100):
+    """Return mean temperature and total precipitation for a selected week."""
+    sunday = pd.Timestamp(reference_week).normalize()
+
+    if sunday.dayofweek != 6:
+        raise ValueError("The reference week must be a Sunday.")
+
+    monday = sunday - pd.Timedelta(days=6)
+
+    # Include an extra day before the week to account for UTC offset differences
+    start_date = monday - pd.Timedelta(days=1)
+
+    # Include the following Monday to capture Sunday's final precipitation hour
+    end_date = sunday + pd.Timedelta(days=1)
+
+    hourly = load_regional_hourly_weather(region, start_date=start_date.strftime("%Y-%m-%d"),
+                                          end_date=end_date.strftime("%Y-%m-%d"), n_points=n_points)
+
+    weekly = hourly_weather_to_weekly(hourly)
+
+    if sunday not in weekly.index:
+        raise ValueError(f"No complete weather observations for {region} on {sunday:%d %b %Y}.")
+
+    return weekly.loc[sunday]
