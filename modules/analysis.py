@@ -1,4 +1,3 @@
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
@@ -10,23 +9,31 @@ from sklearn.neighbors import LocalOutlierFactor
 from statsmodels.tsa.seasonal import STL
 
 
-def precipitation_spc(data, cutoff_days=30, n_std=3):
-    """Find unusual hourly precipitation using a DCT high-pass filter and robust SPC."""
+WEATHER_PROPERTIES = {"temperature_2m": ("Temperature", "°C"), "precipitation": ("Precipitation", "mm")}
+
+
+def weather_spc(data, property_name="temperature_2m", cutoff_days=30, n_std=3):
+    """Find unusual hourly weather observations using DCT high-pass filtering and robust SPC."""
+
+    if property_name not in WEATHER_PROPERTIES:
+        raise ValueError("Unsupported weather property.")
+
+    label, unit = WEATHER_PROPERTIES[property_name]
 
     dates = pd.DatetimeIndex(pd.to_datetime(data["date"]))
-    values = data["precipitation"].to_numpy(dtype=float)
+    values = data[property_name].to_numpy(dtype=float)
 
     if len(values) < 3 or dates.hasnans or not np.isfinite(values).all():
-        raise ValueError("At least three valid precipitation observations are required.")
+        raise ValueError("At least three valid weather observations are required.")
 
-    if (values < 0).any():
+    if property_name == "precipitation" and (values < 0).any():
         raise ValueError("Precipitation cannot be negative.")
 
     if not dates.is_unique or not dates.is_monotonic_increasing:
         raise ValueError("Dates must be unique and in chronological order.")
 
     if not ((dates[1:] - dates[:-1]) == pd.Timedelta(hours=1)).all():
-        raise ValueError("Precipitation data must have hourly intervals without gaps.")
+        raise ValueError("Weather data must have hourly intervals without gaps.")
 
     if not np.isfinite(cutoff_days) or cutoff_days < 2 / 24:
         raise ValueError("The cut-off period must be at least 2 hours for hourly data.")
@@ -34,17 +41,18 @@ def precipitation_spc(data, cutoff_days=30, n_std=3):
     if not np.isfinite(n_std) or n_std <= 0:
         raise ValueError("n_std must be positive.")
 
-    # DCT-I bin k corresponds to k / (2*(N-1)) cycles/hour. Zero out periods longer than cutoff_days and use what remains to flag unusual rainfall
+    # DCT-I frequency bins in cycles per hour
     frequencies = np.arange(len(values)) / (2 * (len(values) - 1))
     coefficients = dct(values, type=1, norm="forward")
 
+    # Remove variations with periods longer than cutoff_days
     high_coefficients = coefficients.copy()
     high_coefficients[frequencies < 1 / (24 * cutoff_days)] = 0
 
     residual = idct(high_coefficients, type=1, norm="forward")
     baseline = values - residual
 
-    # Rainfall peaks can pull the mean and SD upwards, so use median and MAD. The MAD scaling makes it comparable to an SD, but rainfall is not normally distributed
+    # Use median and MAD to reduce the influence of extreme observations
     centre = np.median(residual)
     sigma = median_abs_deviation(residual, scale="normal")
 
@@ -54,7 +62,7 @@ def precipitation_spc(data, cutoff_days=30, n_std=3):
     if degenerate:
         sigma = 0.0
 
-    # Put the limits back on the original rainfall scale (only the limits use the filter)
+    # Put the limits back on the original measurement scale
     lower = baseline + centre - n_std * sigma
     upper = baseline + centre + n_std * sigma
 
@@ -62,61 +70,54 @@ def precipitation_spc(data, cutoff_days=30, n_std=3):
     above = values > upper + tolerance
     outliers = below | above
 
-    result = pd.DataFrame({"date": dates,
-                           "precipitation": values,
-                           "baseline": baseline,
-                           "residual": residual,
-                           "lower": lower,
-                           "upper": upper,
-                           "outlier": outliers,
-                           "side": np.where(above, "upper", np.where(below, "lower", "inlier"))})
-
+    result = pd.DataFrame({"date": dates, property_name: values, "baseline": baseline, "residual": residual, "lower": lower,
+                           "upper": upper, "outlier": outliers, "side": np.where(above, "upper", np.where(below, "lower", "inlier"))})
     variance = np.var(values)
+    summary = {"cutoff_days": cutoff_days, "n_std": n_std, "hours": len(values), "median_residual": centre, "robust_sigma": sigma, "degenerate_mad": degenerate,
+               "upper_outliers": int(above.sum()), "lower_outliers": int(below.sum()), "outliers": int(outliers.sum()), "outlier_percent": 100 * outliers.mean(),
+        "residual_variance_ratio": np.var(residual) / variance if variance else 0.0, "baseline_variance_ratio": np.var(baseline) / variance if variance else 0.0}
 
-    summary = {"cutoff_days": cutoff_days,
-               "n_std": n_std,
-               "hours": len(values),
-               "median_residual": centre,
-               "robust_sigma": sigma,
-               "degenerate_mad": degenerate,
-               "upper_outliers": int(above.sum()),
-               "lower_outliers": int(below.sum()),
-               "outliers": int(outliers.sum()),
-               "outlier_percent": 100 * outliers.mean(),
-               "residual_variance_ratio": np.var(residual) / variance if variance else 0.0,
-               "baseline_variance_ratio": np.var(baseline) / variance if variance else 0.0,
-               "negative_baseline_hours": int((baseline < -tolerance).sum())}
+    if property_name == "precipitation":
+        summary["negative_baseline_hours"] = int((baseline < -tolerance).sum())
 
-    fig, ax = plt.subplots(figsize=(12, 4.8))
-
-    ax.plot(dates, values, linewidth=0.7, label="Average precipitation")
-    ax.plot(dates, lower, color="#E69F00", linewidth=0.8, label="Lower SPC limit")
-    ax.plot(dates, upper, color="#618E07", linewidth=0.8, label="Upper SPC limit")
-
-    ax.scatter(dates[outliers], values[outliers], facecolors="none", edgecolors="#D50000", s=10, linewidths=0.55, alpha=0.85, label="Flagged hour", zorder=3)
-
-    ax.set(xlabel="Time", ylabel="Hourly precipitation (mm)", title=f"Regional precipitation: {cutoff_days:g}-day DCT cut-off, {n_std:g} × SD")
-
-    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.22), ncol=4, frameon=False)
-    fig.tight_layout()
+    # Plot the original observations and SPC limits, not the filtered signal
+    fig = go.Figure()
+    for name, y, colour in [(f"Average {label.lower()}", values, "#8FD3C1"), ("Lower SPC limit", lower, "#F2C14E"), ("Upper SPC limit", upper, "#5FA8D3")]:
+        fig.add_trace(go.Scatter(x=dates, y=y, mode="lines", name=name, line=dict(color=colour, width=1.2)))
+    fig.add_trace(go.Scatter(x=dates[outliers], y=values[outliers], mode="markers", name="Flagged hour", marker=dict(color="#E07A5F", size=6, symbol="circle-open")))
+    fig.update_layout(title=f"Regional {label.lower()}: {cutoff_days:g}-day DCT cut-off, {n_std:g} × SD", xaxis_title="Time", yaxis_title=f"{label} ({unit})",
+                      height=500, hovermode="x unified", legend=dict(orientation="h", y=-0.2))
+    fig.update_xaxes(hoverformat="%d %b %Y, %H:%M")
+    fig.update_yaxes(hoverformat=".2f", ticksuffix=f" {unit}")
 
     return fig, result, summary
 
 
-def temperature_lof(data, contamination=0.01, n_neighbors=50, time_scale=0.02):
-    """Find unusual hourly temperatures using LOF with temperature and scaled time."""
+def weather_lof(data, property_name="temperature_2m", contamination=0.01, n_neighbors=50, time_scale=0.02):
+    """Find unusual hourly weather observations using LOF with scaled time."""
+
+    if property_name not in WEATHER_PROPERTIES:
+        raise ValueError("Unsupported weather property.")
+
+    label, unit = WEATHER_PROPERTIES[property_name]
 
     dates = pd.DatetimeIndex(pd.to_datetime(data["date"]))
-    values = data["temperature_2m"].to_numpy(dtype=float)
+    values = data[property_name].to_numpy(dtype=float)
 
     if len(values) < 3 or dates.hasnans or not np.isfinite(values).all():
-        raise ValueError("At least three valid temperature observations are required.")
+        raise ValueError("At least three valid weather observations are required.")
+
+    if property_name == "precipitation" and (values < 0).any():
+        raise ValueError("Precipitation cannot be negative.")
+    
+    if np.ptp(values) == 0:
+        raise ValueError("The selected weather property is constant throughout the period.")
 
     if not dates.is_unique or not dates.is_monotonic_increasing:
         raise ValueError("Dates must be unique and in chronological order.")
 
     if not ((dates[1:] - dates[:-1]) == pd.Timedelta(hours=1)).all():
-        raise ValueError("Temperature data must have hourly intervals without gaps.")
+        raise ValueError("Weather data must have hourly intervals without gaps.")
 
     if not np.isfinite(contamination) or not 0 < contamination <= 0.5:
         raise ValueError("contamination must be between 0 and 0.5.")
@@ -127,37 +128,27 @@ def temperature_lof(data, contamination=0.01, n_neighbors=50, time_scale=0.02):
     if not np.isfinite(time_scale) or time_scale < 0:
         raise ValueError("time_scale must be non-negative.")
 
-    # LOF uses distances between points. At time_scale=0.02, 50 hours apart contributes as much to the distance as a 1°C difference
+    # Weight hourly time differences relative to the selected weather property
     time = np.arange(len(values)) * time_scale
     features = np.column_stack((values, time))
 
     model = LocalOutlierFactor(n_neighbors=n_neighbors, contamination=contamination)
     anomalies = model.fit_predict(features) == -1
 
-    # scikit-learn stores negative LOF values, so reverse the sign for easier reading
+    # Reverse the negative LOF scores for easier reading
     scores = -model.negative_outlier_factor_
-
-    result = pd.DataFrame({"date": dates,
-                           "temperature_2m": values,
-                           "lof_score": scores,
-                           "anomaly": anomalies})
-
-    summary = {"hours": len(values),
-               "anomalies": int(anomalies.sum()),
-               "anomaly_percent": 100 * anomalies.mean(),
-               "contamination": contamination,
-               "n_neighbors": n_neighbors,
-               "time_scale": time_scale}
-
-    fig, ax = plt.subplots(figsize=(12, 4.8))
-
-    ax.plot(dates, values, linewidth=0.8, label="Average temperature")
-    ax.scatter(dates[anomalies], values[anomalies], color="#D50000", s=18, label="LOF anomalies", zorder=3)
-
-    ax.set(xlabel="Time", ylabel="Temperature (°C)", title="Hourly temperature and LOF anomalies")
-
-    ax.legend()
-    fig.tight_layout()
+    result = pd.DataFrame({"date": dates, property_name: values, "lof_score": scores, "anomaly": anomalies})
+    summary = {"hours": len(values), "anomalies": int(anomalies.sum()), "anomaly_percent": 100 * anomalies.mean(),
+               "contamination": contamination, "n_neighbors": n_neighbors, "time_scale": time_scale}
+    
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=dates, y=values, mode="lines", name=f"Average {label.lower()}", line=dict(color="#8FD3C1", width=1.2)))
+    fig.add_trace(go.Scatter(x=dates[anomalies], y=values[anomalies], mode="markers", name="LOF anomalies", marker=dict(color="#E07A5F", size=6, symbol="circle-open"),
+                             customdata=scores[anomalies], hovertemplate=f"%{{y:.2f}} {unit}<br>LOF score: %{{customdata:.2f}}<extra>LOF anomaly</extra>"))
+    fig.update_layout(title=f"Hourly {label.lower()} and LOF anomalies", xaxis_title="Time", yaxis_title=f"{label} ({unit})",
+                      height=500, hovermode="x unified", legend=dict(orientation="h", y=-0.2))
+    fig.update_xaxes(hoverformat="%d %b %Y, %H:%M")
+    fig.update_yaxes(hoverformat=".2f", ticksuffix=f" {unit}")
 
     return fig, result, summary
 

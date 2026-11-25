@@ -1,10 +1,9 @@
 from datetime import date, timedelta
 
-import matplotlib.pyplot as plt
 import pandas as pd
 import streamlit as st
 
-from modules.analysis import precipitation_spc, temperature_lof
+from modules.analysis import WEATHER_PROPERTIES, weather_spc, weather_lof
 from modules.weather import sample_weather_locations, download_weather, regional_hourly_averages
 
 
@@ -130,73 +129,113 @@ tab_names = ["Outlier / SPC", "Anomaly / LOF"]
 spc_tab, lof_tab = st.tabs(tab_names, default=st.session_state.get("weather_last_tab", "Outlier / SPC"), key="weather_tabs", on_change=save_weather_tab)
 
 with spc_tab:
-    st.write("Find unusual precipitation hours using DCT filtering and robust SPC limits.")
+    st.write("Find unusual weather observations using DCT filtering and robust SPC limits.")
 
     if not has_data:
         st.caption("Load weather data above to run the SPC analysis.")
     else:
+        property_name = st.selectbox(
+            "Weather property",
+            options=list(WEATHER_PROPERTIES),
+            format_func=lambda name: WEATHER_PROPERTIES[name][0],
+            key="spc_weather_property",
+            persist_state="session"
+        )
+
+        label, unit = WEATHER_PROPERTIES[property_name]
+
         col1, col2 = st.columns(2)
+
         with col1:
-            cutoff_days = st.number_input("DCT cut-off (days)", min_value=1.0, max_value=365.0, value=30.0, step=1.0, key="spc_cutoff_days",
-                                          persist_state="session", help="The period separating longer-term variations from shorter-term changes.",)
+            cutoff_days = st.number_input(
+                "DCT cut-off (days)", min_value=1.0, max_value=365.0,
+                value=30.0, step=1.0, key="spc_cutoff_days",
+                persist_state="session",
+                help="The period separating longer-term variations from shorter-term changes."
+            )
+
         with col2:
-            n_std = st.number_input("SPC threshold (robust SD)", min_value=0.5, max_value=10.0, value=3.0, step=0.5, key="spc_n_std", persist_state="session",
-                                    help="How far a residual must be from the median to be flagged.")
+            n_std = st.number_input(
+                "SPC threshold (robust SD)", min_value=0.5, max_value=10.0,
+                value=3.0, step=0.5, key="spc_n_std",
+                persist_state="session",
+                help="How far a residual must be from the median to be flagged."
+            )
 
         if len(hourly_data) / 24 <= cutoff_days:
-            st.warning("The chosen DCT cut-off is at least as long as the data period. Consider a shorter cut-off or a longer download period.")
+            st.warning(
+                "The chosen DCT cut-off is at least as long as the data period. "
+                "Consider a shorter cut-off or a longer download period."
+            )
 
         try:
-            fig, results, summary = precipitation_spc(hourly_data, cutoff_days=cutoff_days, n_std=n_std)
-            st.pyplot(fig, width="stretch")
-            plt.close(fig)
+            fig, results, summary = weather_spc(
+                hourly_data,
+                property_name=property_name,
+                cutoff_days=cutoff_days,
+                n_std=n_std
+            )
+
+            st.plotly_chart(fig, width="stretch")
 
             c1, c2, c3 = st.columns(3)
             c1.metric("Flagged hours", f"{summary['outliers']:,}")
             c2.metric("Flagged share", f"{summary['outlier_percent']:.2f}%")
             c3.metric("Upper / lower", f"{summary['upper_outliers']} / {summary['lower_outliers']}")
-            st.caption("Flags represent individual hours, not necessarily independent rainfall events.")
 
-            with st.expander("Flagged precipitation hours"):
-                flagged = results.loc[results["outlier"], ["date", "precipitation", "lower", "upper", "side"]]
+            st.caption(
+                "Flags represent individual hours, not necessarily independent weather events."
+            )
+
+            with st.expander(f"Flagged {label.lower()} hours"):
+                flagged = results.loc[
+                    results["outlier"],
+                    ["date", property_name, "lower", "upper", "side"]
+                ]
+
                 st.dataframe(flagged, hide_index=True, width="stretch", height=300)
 
         except ValueError as exc:
             st.warning(f"SPC analysis could not run: {exc}")
 
 with lof_tab:
-    st.write("Find unusual temperatures using Local Outlier Factor (LOF).")
+    st.write("Find unusual weather observations using Local Outlier Factor (LOF).")
 
     if not has_data:
         st.caption("Load weather data above to run the LOF analysis.")
     else:
+        property_name = st.selectbox("Weather property", options=list(WEATHER_PROPERTIES),
+                                     format_func=lambda name: WEATHER_PROPERTIES[name][0], key="lof_weather_property", persist_state="session")
+
+        label, unit = WEATHER_PROPERTIES[property_name]
+
         max_neighbors = max(2, len(hourly_data) - 1)
+
         if not 2 <= st.session_state.get("lof_neighbors", 50) <= max_neighbors:
             st.session_state["lof_neighbors"] = min(50, max_neighbors)
-
+        
         c1, c2, c3 = st.columns(3)
+        
         with c1:
             n_neighbors = st.number_input("Neighbours", min_value=2, max_value=max_neighbors, value=min(50, max_neighbors), step=1,
                                           key="lof_neighbors", persist_state="session", help="How many nearby points LOF uses to estimate local density.")
         with c2:
-            time_scale = st.number_input("Time scale", min_value=0.0, max_value=2.0, value=0.02, step=0.01, format="%.2f",
-                                         key="lof_time_scale", persist_state="session", help="Weight of hourly time differences relative to temperature differences.")
+            time_scale = st.number_input("Time scale", min_value=0.0, max_value=2.0, value=0.02, step=0.01, format="%.2f", key="lof_time_scale", 
+                                         persist_state="session", help=f"Weight of hourly time differences relative to {label.lower()} differences ({unit}).")
         with c3:
-            contamination_percent = st.number_input("Expected anomalies (%)", min_value=0.1, max_value=50.0, value=1.0, step=0.5, format="%.1f", key="lof_contamination_pct", persist_state="session",
-                                                    help="Approximate fraction of observations LOF should label as anomalies.")
+            contamination_percent = st.number_input("Expected anomalies (%)", min_value=0.1, max_value=50.0, value=1.0, step=0.5, format="%.1f", 
+                                                    key="lof_contamination_pct", persist_state="session", help="Approximate fraction of observations LOF should label as anomalies.")
 
         try:
-            fig, results, summary = temperature_lof(hourly_data, contamination=contamination_percent / 100, n_neighbors=n_neighbors, time_scale=time_scale)
-            st.pyplot(fig, width="stretch")
-            plt.close(fig)
-
+            fig, results, summary = weather_lof(hourly_data, property_name=property_name, contamination=contamination_percent / 100, n_neighbors=n_neighbors, time_scale=time_scale)
+            st.plotly_chart(fig, width="stretch")
             c1, c2 = st.columns(2)
             c1.metric("Anomalous hours", f"{summary['anomalies']:,}")
             c2.metric("Anomalous share", f"{summary['anomaly_percent']:.2f}%")
-            st.caption("The contamination setting controls the approximate share of flagged hours; these are potential anomalies, not confirmed errors.")
+            st.caption("The contamination setting controls the approximate share of flagged hours. These are potential anomalies, not confirmed errors.")
 
-            with st.expander("Flagged temperature hours"):
-                flagged = results.loc[results["anomaly"], ["date", "temperature_2m", "lof_score"]]
+            with st.expander(f"Flagged {label.lower()} hours"):
+                flagged = results.loc[results["anomaly"], ["date", property_name, "lof_score"]]
                 st.dataframe(flagged, hide_index=True, width="stretch", height=300)
 
         except ValueError as exc:
