@@ -22,7 +22,8 @@ def main():
         "- **Reservoir Plots:** Plot reservoir measurements over time and compare regions.\n"
         "- **Reservoir Analysis:** Explore seasonal patterns in reservoir filling degree using STL and Spectrogram.\n"
         "- **Weather Analysis:** Download hourly ERA5 weather data and analyse unusual precipitation (SPC) and temperature (LOF).\n"
-        "- **Cross-border Transfers:** Explore annual electricity transfers and monthly flows between Norway and neighbouring bidding zones.")
+        "- **Cross-border Transfers:** Explore annual electricity transfers and monthly flows between Norway and neighbouring bidding zones."
+        "- **Currency exchange rates:** Explore historical EUR and USD exchange rates against NOK.")
 
     st.write("")
     st.subheader("Getting started")
@@ -40,6 +41,7 @@ def main():
 pages = [st.Page(main, title="Home", icon="🏠", default=True),
          st.Page("pages/2_Reservoir_Data.py", title="Reservoir Data", icon="📋"),
          st.Page("pages/3_Reservoir_Plots.py", title="Reservoir Plots", icon="📈"),
+         st.Page("pages/7_Currency_Exchange_Rates.py", title="Currency exchange rates", icon=":material/currency_exchange:"),
          st.Page("pages/4_Reservoir_Analysis.py", title="Reservoir Analysis", icon="📊"),
          st.Page("pages/5_Weather_Analysis.py", title="Weather Analysis", icon="🌦️"),
          st.Page("pages/6_Cross_Border_Transfers.py", title="Cross-border Transfers", icon="⚡")]

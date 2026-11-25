@@ -9,8 +9,6 @@ dataframeBorderColor = "#334247"
 borderColor = "#334247"
 baseRadius = "medium"
 
-chartCategoricalColors = ["#BCD7D0", "#D7BCC2", "#64A9F5", "#F2C66D", "#B49AF5", "#F28C69"]
-
 [theme.sidebar]
 backgroundColor = "#1B2327"
 secondaryBackgroundColor = "#101416"
