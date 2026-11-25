@@ -22,8 +22,8 @@ def main():
         "- **Reservoir Plots:** Plot reservoir measurements over time and compare regions.\n"
         "- **Reservoir Analysis:** Explore seasonal patterns in reservoir filling degree using STL and Spectrogram.\n"
         "- **Weather Analysis:** Download hourly ERA5 weather data and analyse unusual precipitation (SPC) and temperature (LOF).\n"
-        "- **Cross-border Transfers:** Explore annual electricity transfers and monthly flows between Norway and neighbouring bidding zones."
-        "- **Currency exchange rates:** Explore historical EUR and USD exchange rates against NOK.")
+        "- **Electricity Transfers:** Explore annual electricity transfers and monthly flows between Norway and neighbouring bidding zones.\n"
+        "- **Currency Exchange Rates:** Explore historical EUR and USD exchange rates against NOK.")
 
     st.write("")
     st.subheader("Getting started")
@@ -33,21 +33,19 @@ def main():
         "Each page has its own date and analysis settings. On the Weather Analysis page, "
         "select a period and click 'Load weather data' before running the analyses.")
 
-    st.caption(
-        "Cross-border Transfers uses a separate connection selector "
-        "and is not affected by the global region selection.")
+    st.caption("Electricity Transfers and Currency Exchange Rates are independent of the selected region.")
 
-# Register the application pages and define their sidebar labels
-pages = [st.Page(main, title="Home", icon="🏠", default=True),
-         st.Page("pages/2_Reservoir_Data.py", title="Reservoir Data", icon="📋"),
-         st.Page("pages/3_Reservoir_Plots.py", title="Reservoir Plots", icon="📈"),
-         st.Page("pages/7_Currency_Exchange_Rates.py", title="Currency exchange rates", icon=":material/currency_exchange:"),
-         st.Page("pages/4_Reservoir_Analysis.py", title="Reservoir Analysis", icon="📊"),
-         st.Page("pages/5_Weather_Analysis.py", title="Weather Analysis", icon="🌦️"),
-         st.Page("pages/6_Cross_Border_Transfers.py", title="Cross-border Transfers", icon="⚡")]
+# Register the pages and organise them into navigation groups
+pages = {"": [st.Page(main, title="Home", icon=":material/home:", default=True)],
+         "Data overview": [st.Page("pages/2_Reservoir_Data.py", title="Reservoir Data", icon=":material/table_chart:"),
+                           st.Page("pages/3_Reservoir_Plots.py", title="Reservoir Plots", icon=":material/show_chart:"),
+                           st.Page("pages/6_Cross_Border_Transfers.py", title="Electricity Transfers", icon=":material/bolt:"),
+                           st.Page("pages/7_Currency_Exchange_Rates.py", title="Currency Exchange Rates", icon=":material/currency_exchange:")],
+         "Data analysis": [st.Page("pages/4_Reservoir_Analysis.py", title="Reservoir Analysis", icon=":material/query_stats:"),
+                           st.Page("pages/5_Weather_Analysis.py", title="Weather Analysis", icon=":material/cloud:")],
+         "Forecasting": [st.Page("pages/8_Reservoir_Forecasting.py", title="Reservoir Forecasting", icon=":material/trending_up:")]}
 
 page = st.navigation(pages)
-
 
 # Get the available reservoir regions
 df = load_magasinstatistikk_data()
@@ -59,7 +57,6 @@ if st.session_state.get("selected_area_type") not in area_types:
 
 # Keep the region selector visible across all pages
 with st.sidebar:
-    st.divider()
     st.subheader("Selected region")
 
     selected_area_type = st.selectbox("Area type", area_types, key="selected_area_type")
