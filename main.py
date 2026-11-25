@@ -1,10 +1,25 @@
 import streamlit as st
+from streamlit_folium import st_folium
 
 from modules.magasinstatistikk_data import load_magasinstatistikk_data
+from modules.map import create_map, get_clicked_area
 
 
 # Configure the application layout and browser tab
 st.set_page_config(page_title="IND320 Energy Project", layout="wide")
+
+
+def update_map_selection():
+    """Update the selected region after a map click."""
+    area_type = st.session_state["selected_area_type"]
+    map_data = st.session_state.get(f"reservoir_map_{area_type}", {})
+    clicked = map_data.get("last_object_clicked")
+
+    if clicked:
+        area_number = get_clicked_area(area_type, clicked["lat"], clicked["lng"])
+
+        if area_number is not None:
+            st.session_state["selected_area_number"] = area_number
 
 
 def main():
@@ -12,27 +27,42 @@ def main():
     st.title("IND320 Energy Project")
 
     st.write("")
-    st.write("This application was developed as part of the IND320 project work and provides an interactive overview of reservoir, historical weather and cross-border electricity transfer data.")
+    st.write("Explore Norwegian reservoir, weather, electricity transfer and currency exchange data.")
+
+    map_column, info_column = st.columns([3, 2])
+
+    with map_column:
+        m, area_layer = create_map(selected_area_type, selected_area_number)
+
+        st_folium(m, key=f"reservoir_map_{selected_area_type}", height=800, width=None, feature_group_to_add=area_layer,
+                  returned_objects=["last_object_clicked"], on_change=update_map_selection)
+
+        st.caption("Click an area on the map or use the region selectors in the sidebar.")
+
+    with info_column:
+        st.subheader("Selected region")
+        st.write(f"{selected_area_type}{selected_area_number}")
 
     st.write("")
     st.subheader("What you can explore")
 
     st.markdown(
         "- **Magasinstatistikk:** Explore weekly reservoir measurements, trends and comparisons between regions.\n"
-        "- **Reservoir Analysis:** Explore seasonal patterns in reservoir filling degree using STL and Spectrogram.\n"
-        "- **Weather Analysis:** Download hourly ERA5 weather data and analyse unusual precipitation (SPC) and temperature (LOF).\n"
         "- **Electricity Transfers:** Explore annual electricity transfers and monthly flows between Norway and neighbouring bidding zones.\n"
-        "- **Currency Exchange Rates:** Explore historical EUR and USD exchange rates against NOK.")
+        "- **Currency Exchange Rates:** Explore historical EUR and USD exchange rates against NOK.\n"
+        "- **Reservoir Analysis:** Explore seasonal patterns in reservoir filling degree using STL and spectrograms.\n"
+        "- **Weather Analysis:** Download hourly ERA5 weather data and analyse unusual precipitation (SPC) and temperature (LOF).")
 
     st.write("")
     st.subheader("Getting started")
 
     st.write(
-        "Choose a region in the sidebar to explore reservoir and weather data. "
+        "Select a region on the map or in the sidebar to explore reservoir and weather data. "
         "Each page has its own date and analysis settings. On the Weather Analysis page, "
         "select a period and click 'Load weather data' before running the analyses.")
 
     st.caption("Electricity Transfers and Currency Exchange Rates are independent of the selected region.")
+
 
 # Register the pages and organise them into navigation groups
 pages = {"": [st.Page(main, title="Home", icon=":material/home:", default=True)],
