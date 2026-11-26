@@ -24,6 +24,10 @@ def update_map_selection():
             st.session_state["selected_area_number"] = area_number
 
 
+def update_reference_week():
+    st.session_state["reference_week"] = st.session_state["home_reference_week"]
+
+
 def main():
     """Render the home page."""
     st.title("IND320 Energy Project")
@@ -41,11 +45,9 @@ def main():
     date_column, measurement_column = st.columns(2)
 
     with date_column:
-        reference_week = st.selectbox("Reference week", observation_dates,
-                                      format_func=lambda date: date.strftime("%d %b %Y"),
-                                      key="reference_week",
-                                      persist_state="session",
-                                      help="Select the week for which reservoir and weather data are displayed.")
+        st.session_state["home_reference_week"] = st.session_state["reference_week"]
+        reference_week = st.selectbox("Reference week", observation_dates, format_func=lambda date: date.strftime("%d %b %Y"),
+                                      key="home_reference_week", on_change=update_reference_week, help="Select the week for which reservoir and weather data are displayed.")
 
     with measurement_column:
         measurement = st.selectbox("Colour map by", list(measurements), key="map_measurement", persist_state="session")
@@ -85,6 +87,7 @@ def main():
 
                 for i, number in enumerate(missing_areas):
                     region = f"{selected_area_type}{number}"
+                    progress.progress(i / len(missing_areas), text=f"Loading weather for {region}...")
 
                     try:
                         weather_data[number] = load_weather_week(region, reference_week, n_points=100)
@@ -103,6 +106,10 @@ def main():
                             st.write(error)
 
         st.caption(f"Weather available for {len(weather_data)} of {len(area_numbers)} regions.")
+
+        if len(weather_data) < len(area_numbers):
+            st.caption("Loading a new week for multiple regions may take some time due to Open-Meteo's API limits. Previously loaded weeks are cached.")
+    
         values = {number: row[selected_column] for number, row in weather_data.items()}
 
     else:
@@ -161,38 +168,39 @@ def main():
     st.write("")
     st.subheader("What you can explore")
 
-    st.markdown(
-        "- **Magasinstatistikk:** Explore weekly reservoir measurements, trends and comparisons between regions.\n"
-        "- **Electricity Transfers:** Explore annual electricity transfers and monthly flows between Norway and neighbouring bidding zones.\n"
-        "- **Currency Exchange Rates:** Explore historical EUR and USD exchange rates against NOK.\n"
-        "- **Reservoir Analysis:** Explore seasonal patterns in reservoir filling degree using STL and spectrograms.\n"
-        "- **Weather Analysis:** Download hourly ERA5 weather data and analyse unusual precipitation (SPC) and temperature (LOF).")
+    st.markdown("- **Magasinstatistikk:** Explore weekly reservoir measurements, trends and comparisons between regions.\n"
+                "- **Electricity Transfers:** Explore annual electricity transfers and monthly flows between Norway and neighbouring bidding zones.\n"
+                "- **Currency Exchange Rates:** Explore historical EUR and USD exchange rates against NOK.\n"
+                "- **Reservoir Analysis:** Explore seasonal patterns in reservoir filling degree using STL and spectrograms.\n"
+                "- **Weather Analysis:** Download hourly ERA5 weather data and detect unusual temperature and precipitation observations using SPC and LOF.\n"
+                "- **Weather-Reservoir Correlation:** Explore how the relationship between weather and reservoir filling changes over time using sliding window correlation.\n"
+                "- **Reservoir Forecasting:** Forecast weekly reservoir filling using SNARIMAX, with optional weather, currency and electricity transfer data.")
 
     st.write("")
     st.subheader("Getting started")
 
-    st.write(
-        "Select a region on the map or in the sidebar to explore reservoir and weather data. "
-        "Use the reference week to view historical reservoir measurements. "
-        "The analysis pages have their own date and analysis settings.")
+    st.write( "Select a region on the map or in the sidebar to explore reservoir and weather data. "
+             "The reference week is shared between the Home and Reservoir Forecasting pages. "
+             "The analysis pages have their own date and analysis settings.")
 
-    st.caption("Electricity Transfers and Currency Exchange Rates are independent of the selected region.")
+    st.caption("The Electricity Transfers and Currency Exchange Rates overview pages are independent of the selected region.")
 
     with st.expander("Data sources"):
-        st.markdown(
-            "- [NVE Magasinstatistikk](https://www.nve.no/energi/analyser-og-statistikk/magasinstatistikk/): Weekly reservoir measurements.\n"
-            "- [NVE Atlas](https://atlas.nve.no/vertigisstudio/web/?app=e0080b63a0c445a5a47e6d8c3b53ad8c): Electricity bidding zones and hydrological regions.\n"
-            "- [Open-Meteo Historical Weather API](https://open-meteo.com/en/docs/historical-weather-api): ERA5 weather data. "
-            "Regional estimates are based on 100 sampled locations, with temperature averaged and precipitation accumulated over the selected week.")
+        st.markdown("- [NVE Magasinstatistikk](https://www.nve.no/energi/analyser-og-statistikk/magasinstatistikk/): Weekly reservoir measurements.\n"
+                    "- [NVE Atlas](https://atlas.nve.no/vertigisstudio/web/?app=e0080b63a0c445a5a47e6d8c3b53ad8c): Electricity bidding zones and hydrological regions.\n"
+                    "- [Open-Meteo Historical Weather API](https://open-meteo.com/en/docs/historical-weather-api): ERA5 weather data. "
+                    "Regional weekly estimates are based on 100 sampled locations, with temperature averaged and precipitation accumulated over the selected week.\n"
+                    "- [Norges Bank API](https://www.norges-bank.no/tema/statistikk/apne-data/): EUR/NOK and USD/NOK exchange rates.\n"
+                    "- [ENTSO-E Transparency Platform](https://transparency.entsoe.eu/): International electricity transfers for 2024–2025, stored in MongoDB.")
 
 # Register the pages and organise them into navigation groups
 pages = {"": [st.Page(main, title="Home", icon=":material/home:", default=True)],
          "Data overview": [st.Page("pages/2_Magasinstatistikk.py", title="Magasinstatistikk", icon=":material/water_drop:"),
-                           st.Page("pages/6_Cross_Border_Transfers.py", title="Electricity Transfers", icon=":material/bolt:"),
-                           st.Page("pages/7_Currency_Exchange_Rates.py", title="Currency Exchange Rates", icon=":material/currency_exchange:")],
-         "Data analysis": [st.Page("pages/4_Reservoir_Analysis.py", title="Reservoir Analysis", icon=":material/query_stats:"),
-                           st.Page("pages/5_Weather_Analysis.py", title="Weather Analysis", icon=":material/cloud:"),
-                           st.Page("pages/9_Weather_Reservoir_Correlation.py", title="Weather-Reservoir Correlation", icon=":material/insights:")],
+                           st.Page("pages/3_Cross_Border_Transfers.py", title="Electricity Transfers", icon=":material/bolt:"),
+                           st.Page("pages/4_Currency_Exchange_Rates.py", title="Currency Exchange Rates", icon=":material/currency_exchange:")],
+         "Data analysis": [st.Page("pages/5_Reservoir_Analysis.py", title="Reservoir Analysis", icon=":material/query_stats:"),
+                           st.Page("pages/6_Weather_Analysis.py", title="Weather Analysis", icon=":material/cloud:"),
+                           st.Page("pages/7_Weather_Reservoir_Correlation.py", title="Weather-Reservoir Correlation", icon=":material/insights:")],
          "Forecasting": [st.Page("pages/8_Reservoir_Forecasting.py", title="Reservoir Forecasting", icon=":material/trending_up:")]}
 
 page = st.navigation(pages)

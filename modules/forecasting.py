@@ -2,6 +2,7 @@ import math
 
 import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
 from river import time_series
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
@@ -140,3 +141,50 @@ def evaluate_forecast(actual, predicted):
     r2 = r2_score(actual, predicted) if len(actual) > 1 and np.ptp(actual) > 0 else np.nan
 
     return {"MAE (pp)": mae, "RMSE (pp)": rmse, "R²": r2}
+
+def plot_reservoir_forecast(history, forecast, actual):
+    """Plot historical reservoir filling and animate the forecast."""
+
+    cutoff = history.index[-1]
+
+    # Display the last year of training data
+    history = history.tail(52) * 100
+    predicted = forecast["forecast_fill_ratio"] * 100
+    actual = actual.reindex(predicted.index) * 100
+
+    # Connect the forecast to the last training observation
+    x = [cutoff, *predicted.index]
+    y = [history.iloc[-1], *predicted]
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=history.index, y=history, name="Training observations", mode="lines",
+                             line=dict(color="#8FD3C1", width=1.5)))
+
+    fig.add_trace(go.Scatter(x=x, y=y, name="Forecast", mode="lines+markers",
+                             line=dict(color="#E4C1F9", width=2, dash="dash")))
+
+    # Show actual values when forecasting from a historical cutoff
+    if actual.notna().any():
+        fig.add_trace(go.Scatter(x=[cutoff, *actual.index], y=[history.iloc[-1], *actual],
+                                 name="Observed after cutoff", mode="lines+markers", connectgaps=False,
+                                 line=dict(color="#5FA8D3", width=1.5)))
+
+    # Reveal one additional forecast week in each animation frame
+    fig.frames = [go.Frame(name=str(i), data=[go.Scatter(x=x[:i + 1], y=y[:i + 1])], traces=[1]) for i in range(1, len(x))]
+
+    fig.add_vline(x=cutoff.to_pydatetime(), line_dash="dot", line_color="gray")
+
+    buttons = [dict(label="Play forecast", method="animate",
+                    args=[None, {"frame": {"duration": 450, "redraw": False}, "transition": {"duration": 0}, "fromcurrent": False, "mode": "immediate"}]),
+               dict(label="Show all", method="animate", args=[[str(len(predicted))], {"frame": {"duration": 0, "redraw": False}, "mode": "immediate"}])]
+
+    fig.update_layout(title="Reservoir filling forecast", xaxis_title="Week ending", yaxis_title="Reservoir filling (%)", height=550, hovermode="x unified", margin=dict(t=100),
+                      updatemenus=[dict(type="buttons", direction="right", x=1, y=1.15, xanchor="right", showactive=False, bgcolor="#B9D5CF", bordercolor="#B9D5CF", font=dict(color="#172322", size=12), buttons=buttons)])
+
+    fig.update_xaxes(range=[history.index[0], predicted.index[-1]], hoverformat="%d %b %Y")
+
+    # Keep the axes fixed during animation, including predictions outside 0–100%
+    visible = pd.concat([history, predicted, actual]).dropna()
+    fig.update_yaxes(range=[min(0, visible.min()) - 2, max(100, visible.max()) + 2], ticksuffix="%")
+
+    return fig

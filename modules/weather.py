@@ -8,7 +8,7 @@ from retry_requests import retry
 import streamlit as st
 
 
-@st.cache_data
+@st.cache_data(show_spinner=False)
 def sample_weather_locations(region, n_points=1000, seed=26102025):
     """Generate random locations within a selected geographical area.
     Supports electricity areas (EL1–EL5 / NO1–NO5), hydrological areas (VASS1–VASS3) and Norway (NO0 / NO).
@@ -51,11 +51,11 @@ def sample_weather_locations(region, n_points=1000, seed=26102025):
 
 # Setup the Open-Meteo API client with cache and retry on error
 cache_session = requests_cache.CachedSession(".cache", expire_after=-1)
-retry_session = retry(cache_session, retries=5, backoff_factor=0.2)
+retry_session = retry(cache_session, retries=1, backoff_factor=0.2)
 openmeteo = openmeteo_requests.Client(session=retry_session)
 
 
-def download_weather(region, start_date, end_date, locations, batch_size=100, verbose=False):
+def download_weather(region, start_date, end_date, locations, batch_size=100, verbose=False, on_progress=None):
     """
     Download hourly ERA5 weather data for a selected region and time interval.
 
@@ -102,16 +102,20 @@ def download_weather(region, start_date, end_date, locations, batch_size=100, ve
                   "timezone": "Europe/Berlin",
                   "timeformat": "unixtime"}
 
-        responses = openmeteo.weather_api(url, params=params, timeout=120)
+        responses = openmeteo.weather_api(url, params=params, timeout=60)
 
         # One response is expected for each requested location
         if len(responses) != len(batch):
             raise ValueError("Unexpected number of API responses")
 
         all_responses.extend(responses)
+        completed = min(start + batch_size, len(coordinates))
         
+        if on_progress is not None:
+            on_progress(completed, len(coordinates))
+
         if verbose:
-            print(f"Downloaded {min(start + batch_size, len(coordinates))}/{len(coordinates)} locations")
+            print(f"Downloaded {completed}/{len(coordinates)} locations")
 
     return all_responses
 
@@ -166,11 +170,11 @@ def regional_hourly_averages(responses):
     return pd.DataFrame({"date": dates, "temperature_2m": averages[0], "precipitation": averages[1]})
 
 
-@st.cache_data(ttl="7d")
-def load_regional_hourly_weather(region, start_date, end_date, n_points=100, batch_size=100, seed=26102025):
+@st.cache_data(ttl="7d", show_spinner=False)
+def load_regional_hourly_weather(region, start_date, end_date, n_points=100, batch_size=100, seed=26102025, _on_progress=None):
     """Load and cache regional hourly averages for a selected period."""
     locations = sample_weather_locations(region, n_points=n_points, seed=seed)
-    responses = download_weather(region, start_date, end_date, locations, batch_size=batch_size)
+    responses = download_weather(region, start_date, end_date, locations, batch_size=batch_size, on_progress=_on_progress)
     return regional_hourly_averages(responses)
 
 
@@ -212,7 +216,7 @@ def hourly_weather_to_weekly(hourly):
     return weekly
 
 
-@st.cache_data()
+@st.cache_data(show_spinner=False)
 def load_weather_week(region, reference_week, n_points=100):
     """Return mean temperature and total precipitation for a selected week."""
     sunday = pd.Timestamp(reference_week).normalize()
@@ -238,8 +242,9 @@ def load_weather_week(region, reference_week, n_points=100):
 
     return weekly.loc[sunday]
 
-@st.cache_data()
-def load_weekly_weather(region, first_week, last_week, n_points=100):
+
+@st.cache_data(show_spinner=False)
+def load_weekly_weather(region, first_week, last_week, n_points=100, _on_progress=None):
     """Load regional weather for a range of complete Monday-Sunday weeks."""
 
     first_week = pd.Timestamp(first_week).normalize()
@@ -261,10 +266,30 @@ def load_weekly_weather(region, first_week, last_week, n_points=100):
         end = block[-1] + pd.Timedelta(days=1)
 
         hourly = load_regional_hourly_weather(region, start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d"), n_points=n_points)
-
         weekly = hourly_weather_to_weekly(hourly)
 
         # Retain missing weeks rather than silently removing them
         blocks.append(weekly.reindex(block))
 
+        if _on_progress is not None:
+            _on_progress(i + len(block), len(weeks))
+
     return pd.concat(blocks)
+
+
+def load_weekly_weather_with_progress(region, first_week, last_week, n_points=100):
+    """Load weekly weather and display progress."""
+
+    progress = st.progress(0, text=f"Loading weekly weather for {region}...")
+
+    try:
+        weather = load_weekly_weather(
+            region, first_week, last_week, n_points=n_points,
+            _on_progress=lambda completed, total: progress.progress(
+                completed / total, text=f"Processed {completed} of {total} weather weeks."))
+
+        progress.progress(1.0, text="Weather data loaded.")
+        return weather
+
+    finally:
+        progress.empty()

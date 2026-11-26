@@ -4,31 +4,28 @@ import pandas as pd
 import streamlit as st
 
 from modules.analysis import WEATHER_PROPERTIES, weather_spc, weather_lof
-from modules.weather import sample_weather_locations, download_weather, regional_hourly_averages
+from modules.weather import load_regional_hourly_weather
 
 
 TIMEZONE = "Europe/Berlin"
 FIRST_SELECTABLE_DATE = date(1995, 1, 1)
 
 
-@st.cache_data
-def load_weather_for_selection(region, start_date, end_date, n_points):
-    """Download and average ERA5 data for the selected Berlin calendar days."""
-    locations = sample_weather_locations(region, n_points=n_points)
+def load_weather_for_selection(region, start_date, end_date, n_points, on_progress=None):
+    """Load ERA5 data for the selected Berlin calendar days."""
 
     # Request an extra day on each side to handle local-time boundaries
     request_start = start_date - timedelta(days=1)
     request_end = end_date + timedelta(days=1)
 
-    responses = download_weather(region=region, start_date=request_start.isoformat(), 
-                                 end_date=request_end.isoformat(), locations=locations, batch_size=100)
-    hourly = regional_hourly_averages(responses)
+    hourly = load_regional_hourly_weather(region, request_start.isoformat(), request_end.isoformat(),
+                                          n_points=n_points, _on_progress=on_progress)
 
-    # Keep Berlin time: it uses the same daylight-saving rules as Norway.
+    # Keep Berlin time: it uses the same daylight-saving rules as Norway
     hourly["date"] = hourly["date"].dt.tz_convert(TIMEZONE)
     selected_days = hourly["date"].dt.date.between(start_date, end_date)
     hourly = hourly.loc[selected_days].reset_index(drop=True)
-    
+
     if hourly.empty:
         raise ValueError("No hourly observations were returned for the selected period.")
 
@@ -36,7 +33,7 @@ def load_weather_for_selection(region, start_date, end_date, n_points):
     next_day = pd.Timestamp(end_date + timedelta(days=1), tz=TIMEZONE)
     expected_hours = int((next_day - first_hour) / pd.Timedelta(hours=1))
 
-    # Prevent incomplete or shifted downloads from reaching SPC and LOF.
+    # Prevent incomplete or shifted downloads from reaching SPC and LOF
     if (len(hourly) != expected_hours or hourly["date"].iloc[0] != first_hour or hourly["date"].iloc[-1] != next_day - pd.Timedelta(hours=1)
         or not hourly["date"].is_unique or not hourly["date"].diff().iloc[1:].eq(pd.Timedelta(hours=1)).all()):
         raise ValueError("The downloaded data do not cover all hours in the selected period.")
@@ -83,9 +80,13 @@ download_failed = False
 
 if load_clicked:
     try:
-        with st.spinner("Loading weather data..."):
-            hourly_data = load_weather_for_selection(region, start_date, end_date, n_points)
+        progress = st.progress(0, text=f"Loading weather for {region} ({n_points} locations)...")
+        try:
+            hourly_data = load_weather_for_selection(region, start_date, end_date, n_points, on_progress=lambda completed, total: progress.progress(completed / total, text=f"Processed {completed} of {total} locations."))
+            progress.progress(1.0, text="Weather data loaded.")
 
+        finally:
+            progress.empty()
         st.session_state["weather_hourly_data"] = hourly_data
         st.session_state["weather_loaded_for"] = requested_data
 

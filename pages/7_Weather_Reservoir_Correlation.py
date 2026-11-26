@@ -5,7 +5,7 @@ import streamlit as st
 
 from modules.analysis import WEEKLY_WEATHER_PROPERTIES, RESERVOIR_CORRELATION_PROPERTIES, sliding_window_correlation
 from modules.magasinstatistikk_data import load_magasinstatistikk_data
-from modules.weather import load_weekly_weather
+from modules.weather import load_weekly_weather_with_progress
 
 
 st.title("Weather-Reservoir Correlation")
@@ -72,8 +72,7 @@ requested_data = (region, first_week, last_week, n_points)
 # Download only when requested
 if st.button("Load weather data", key="load_correlation_weather"):
     try:
-        with st.spinner("Loading weekly weather data..."):
-            weather = load_weekly_weather(region, first_week, last_week, n_points=n_points)
+        weather = load_weekly_weather_with_progress(region, first_week, last_week, n_points=n_points)
         st.session_state["correlation_weather_data"] = weather
         st.session_state["correlation_loaded_for"] = requested_data
 
