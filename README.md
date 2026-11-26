@@ -30,11 +30,23 @@ Part 3 adds data analysis in Jupyter and Streamlit, including:
 - Local Outlier Factor (LOF) for detecting temperature anomalies
 - updated Streamlit pages with a shared region selector, adjustable parameters and interactive plots
 
+## Part 4
+
+Part 4 extends the project with:
+- EUR/NOK and USD/NOK exchange rates retrieved from the Norges Bank API
+- investigation of timezones and weekly aggregation of data from different sources
+- interactive geographical map of reservoir and weather measurements using Folium and GeoJSON
+- sliding window correlation between weather and reservoir measurements with adjustable window length and lag
+- forecasting of weekly reservoir filling using River's SNARIMAX model with optional external variables
+- comparison of forecasting settings, training lengths and external variables
+- interactive forecasting with adjustable parameters and animated Plotly figures
+- reorganised Streamlit navigation, shared selections, caching and progress indicators for weather downloads
+
 ## Streamlit app
 
 [IND320 Energy Project](https://ind320-kahaland-vqqy43wgawwsxmytoyb9ah.streamlit.app)
 
-The app includes reservoir data tables and plots, STL and Spectrogram analysis, weather analysis using SPC and LOF, and cross-border electricity transfer visualisations.
+The app includes an interactive geographical map, reservoir data tables and plots, cross-border electricity transfer and currency exchange rate visualisations, STL and Spectrogram analysis, weather analysis using SPC and LOF, weather-reservoir correlation and reservoir forecasting.
 
 ## Run locally
 
@@ -45,4 +57,4 @@ uv sync
 uv run streamlit run main.py
 ```
 
-The app retrieves reservoir data from NVE and weather data from Open-Meteo. The weather page also uses local geographical files for region sampling. Cross-border Transfers requires a configured MongoDB connection.
+The app retrieves reservoir data from NVE, weather data from Open-Meteo and currency exchange rates from Norges Bank. A local GeoJSON file is used for the interactive map and regional weather sampling. The Electricity Transfers page and forecasting with electricity transfer data require a configured MongoDB connection.

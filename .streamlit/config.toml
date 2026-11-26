@@ -1,13 +1,14 @@
 [theme]
-base = "light"
-primaryColor = "#3E7FA6"
-backgroundColor = "#FCFDFE"
-secondaryBackgroundColor = "#EAF2F7"
-textColor = "#302629"
-dataframeHeaderBackgroundColor = "#DCE9F2"
-dataframeBorderColor = "#C8D6E0"
-borderColor = "#C8D6E0"
+base = "dark"
+primaryColor = "#427E74"
+backgroundColor = "#101416"
+secondaryBackgroundColor = "#1B2327"
+textColor = "#E7EEEC"
+dataframeHeaderBackgroundColor = "#263337"
+dataframeBorderColor = "#334247"
+borderColor = "#334247"
 baseRadius = "medium"
 
 [theme.sidebar]
-backgroundColor = "#E5EEF5"
+backgroundColor = "#1B2327"
+secondaryBackgroundColor = "#101416"
