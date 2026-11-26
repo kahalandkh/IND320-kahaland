@@ -10,7 +10,9 @@ from statsmodels.tsa.seasonal import STL
 
 
 WEATHER_PROPERTIES = {"temperature_2m": ("Temperature", "°C"), "precipitation": ("Precipitation", "mm")}
+WEEKLY_WEATHER_PROPERTIES = {"temperature_mean_c": ("Mean weekly temperature", "°C"), "precipitation_total_mm": ("Total weekly precipitation", "mm")}
 
+RESERVOIR_CORRELATION_PROPERTIES = {"reservoir_fill_ratio": ("Reservoir filling", "%"), "reservoir_fill_ratio_change": ("Weekly change in filling", "pp")}
 
 def weather_spc(data, property_name="temperature_2m", cutoff_days=30, n_std=3):
     """Find unusual hourly weather observations using DCT high-pass filtering and robust SPC."""
@@ -234,3 +236,72 @@ def reservoir_spectrogram(series, window_length=104, overlap=52):
         fig.update_yaxes(range=[0, 5])
 
     return fig
+
+
+def sliding_window_correlation(data, weather_property="temperature_mean_c", reservoir_property="reservoir_fill_ratio", window=13, lag=0):
+    """Calculate and plot sliding window correlation between weather and reservoir data."""
+
+    if weather_property not in WEEKLY_WEATHER_PROPERTIES or reservoir_property not in RESERVOIR_CORRELATION_PROPERTIES:
+        raise ValueError("Unsupported correlation property.")
+
+    dates = data.index
+
+    if (not isinstance(dates, pd.DatetimeIndex) or dates.hasnans or not dates.is_unique or dates.tz is not None
+        or not (dates.dayofweek == 6).all() or not (dates == dates.normalize()).all()):
+        raise ValueError("Data must have unique Sunday date labels without a timezone.")
+
+    if not isinstance(window, (int, np.integer)) or window < 4:
+        raise ValueError("Window length must be at least four weeks.")
+
+    if not isinstance(lag, (int, np.integer)) or lag < 0:
+        raise ValueError("Lag must be a non-negative number of weeks.")
+
+    if data.empty:
+        raise ValueError("No weekly observations are available.")
+
+    # Retain missing weeks so that a lag always represents calendar weeks
+    data = data.sort_index().asfreq("W-SUN")
+
+    if window + lag > len(data):
+        raise ValueError("The selected period is too short for this window and lag.")
+
+    reservoir = data[reservoir_property].replace([np.inf, -np.inf], np.nan)
+    weather = data[weather_property].replace([np.inf, -np.inf], np.nan).shift(lag)
+
+    # Calculate centred sliding window correlation
+    rolling_reservoir = reservoir.rolling(window, center=True, min_periods=window)
+    rolling_weather = weather.rolling(window, center=True, min_periods=window)
+    corr = rolling_reservoir.corr(weather)
+
+    # Correlation is undefined when either variable is constant
+    corr = corr.where((rolling_reservoir.max() != rolling_reservoir.min()) & (rolling_weather.max() != rolling_weather.min()))
+    corr = corr.replace([np.inf, -np.inf], np.nan).clip(-1, 1)
+
+    result = pd.DataFrame({"reservoir": reservoir, "lagged_weather": weather, "correlation": corr})
+
+    if corr.notna().sum() == 0:
+        raise ValueError("No complete windows with variation in both variables. Try a shorter window or a different period.")
+
+    reservoir_label, reservoir_unit = RESERVOIR_CORRELATION_PROPERTIES[reservoir_property]
+    weather_label, weather_unit = WEEKLY_WEATHER_PROPERTIES[weather_property]
+
+    fig = make_subplots(rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.07)
+    components = [(reservoir_label, reservoir * 100, "#8FD3C1", reservoir_unit),
+                  (f"{weather_label} (lag {lag} weeks)", weather, "#5FA8D3", weather_unit),
+                  ("Pearson correlation", corr, "#E4C1F9", "")]
+
+    axis_labels = ["Filling change" if reservoir_property == "reservoir_fill_ratio_change" else "Reservoir filling",
+                   "Temperature" if weather_property == "temperature_mean_c" else "Precipitation", "Correlation"]
+    for row, (label, values, colour, unit) in enumerate(components, start=1):
+        fig.add_trace(go.Scatter(x=result.index, y=values, name=label, mode="lines+markers" if row == 3 else "lines",
+                                line=dict(color=colour, width=1.5), marker=dict(size=3), connectgaps=False,
+                                hovertemplate=f"%{{y:.2f}} {unit}<extra>{label}</extra>"), row=row, col=1)
+        fig.update_yaxes(title_text=axis_labels[row - 1], ticksuffix=f" {unit}" if unit else "", row=row, col=1)
+
+    fig.add_hline(y=0, line_dash="dot", line_color="gray", row=3, col=1)
+    fig.update_yaxes(range=[-1.05, 1.05], row=3, col=1)
+    fig.update_layout(title=f"Sliding window correlation: {window} weeks, lag {lag} weeks", height=650, showlegend=False, hovermode="x unified")
+    fig.update_xaxes(hoverformat="%d %b %Y")
+    fig.update_xaxes(title_text="Week ending", row=3, col=1)
+
+    return fig, result

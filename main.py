@@ -191,7 +191,8 @@ pages = {"": [st.Page(main, title="Home", icon=":material/home:", default=True)]
                            st.Page("pages/6_Cross_Border_Transfers.py", title="Electricity Transfers", icon=":material/bolt:"),
                            st.Page("pages/7_Currency_Exchange_Rates.py", title="Currency Exchange Rates", icon=":material/currency_exchange:")],
          "Data analysis": [st.Page("pages/4_Reservoir_Analysis.py", title="Reservoir Analysis", icon=":material/query_stats:"),
-                           st.Page("pages/5_Weather_Analysis.py", title="Weather Analysis", icon=":material/cloud:")],
+                           st.Page("pages/5_Weather_Analysis.py", title="Weather Analysis", icon=":material/cloud:"),
+                           st.Page("pages/9_Weather_Reservoir_Correlation.py", title="Weather-Reservoir Correlation", icon=":material/insights:")],
          "Forecasting": [st.Page("pages/8_Reservoir_Forecasting.py", title="Reservoir Forecasting", icon=":material/trending_up:")]}
 
 page = st.navigation(pages)

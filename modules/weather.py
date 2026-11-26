@@ -237,3 +237,34 @@ def load_weather_week(region, reference_week, n_points=100):
         raise ValueError(f"No complete weather observations for {region} on {sunday:%d %b %Y}.")
 
     return weekly.loc[sunday]
+
+@st.cache_data()
+def load_weekly_weather(region, first_week, last_week, n_points=100):
+    """Load regional weather for a range of complete Monday-Sunday weeks."""
+
+    first_week = pd.Timestamp(first_week).normalize()
+    last_week = pd.Timestamp(last_week).normalize()
+
+    if (first_week.dayofweek != 6 or last_week.dayofweek != 6
+        or first_week > last_week):
+        raise ValueError("Select a valid range of Sunday week labels.")
+
+    weeks = pd.date_range(first_week, last_week, freq="W-SUN", name="date_id")
+    blocks = []
+
+    # Download weather in blocks of up to 52 weeks
+    for i in range(0, len(weeks), 52):
+        block = weeks[i:i + 52]
+
+        # Include additional days for timezone and precipitation boundaries
+        start = block[0] - pd.Timedelta(days=7)
+        end = block[-1] + pd.Timedelta(days=1)
+
+        hourly = load_regional_hourly_weather(region, start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d"), n_points=n_points)
+
+        weekly = hourly_weather_to_weekly(hourly)
+
+        # Retain missing weeks rather than silently removing them
+        blocks.append(weekly.reindex(block))
+
+    return pd.concat(blocks)
